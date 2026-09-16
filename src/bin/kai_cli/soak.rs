@@ -431,6 +431,7 @@ impl Table {
         for group in &mut groups {
             if group.shuffle {
                 self.rng.shuffle(&mut group.faces);
+                group.shuffle = false;
             }
         }
         let (entries, owner_faces) = self

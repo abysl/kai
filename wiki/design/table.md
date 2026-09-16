@@ -45,6 +45,10 @@ This protocol step is independent of auto-pass and forced-choice preferences.
 Reveals still use the existing commit/reveal path; the renderer does not pick
 the shuffle order. Opening rolls and unfinished mulligan choices stay manual.
 
+Agni's host dealer obtains fresh system entropy for shuffled deck groups. The
+seeded CLI soak pre-shuffles its fixtures and clears each group's `shuffle`
+flag before dealing, so the live-game randomness does not override a test seed.
+
 `auto::offer` is the shared classification used by player automation and the
 AI pilot. Requiring every option does not make an ordering prompt forced:
 with multiple trigger choices, return `Offer::Choice`. The order can change

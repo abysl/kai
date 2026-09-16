@@ -107,6 +107,11 @@ is no extra **roll** click, including for the other player's mulligan. This
 does not choose cards for you or pass a response window. The opening roll for
 first player remains manual. Both players should update for automatic shuffling.
 
+New games and deck reloads use fresh random shuffle seeds. Starting the same
+deck in another tab no longer repeats its opening hand and draw order because
+of identical setup steps. Replaying an existing game keeps its recorded order;
+it does not reshuffle the deck.
+
 ## Order simultaneous triggers
 
 When several triggers happen together, Kai asks you to choose their order,
