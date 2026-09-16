@@ -275,6 +275,33 @@ static ASSET_BUSY: Mutex<BTreeSet<String>> = Mutex::new(BTreeSet::new());
 pub const ASSET_RETRY_SECS: f64 = 3.0;
 pub const ASSET_GIVE_UP_SECS: f64 = 90.0;
 
+pub fn request_token_art(name: &str, url: &'static str, now: f64) {
+    let key = format!("token/{name}");
+    if ASSET_RETRY.lock().get(&key).is_some_and(|due| now < *due)
+        || !ASSET_BUSY.lock().insert(key.clone())
+    {
+        return;
+    }
+    let name = name.to_string();
+    wasm_bindgen_futures::spawn_local(async move {
+        match fetch_bytes(url).await {
+            Ok(bytes) => {
+                ASSET_NAMES.lock().insert(key.clone(), name);
+                ARRIVALS.lock().push((key.clone(), bytes));
+                ASSET_RETRY
+                    .lock()
+                    .insert(key.clone(), now + ASSET_GIVE_UP_SECS);
+            }
+            Err(_) => {
+                ASSET_RETRY
+                    .lock()
+                    .insert(key.clone(), now + ASSET_RETRY_SECS);
+            }
+        }
+        ASSET_BUSY.lock().remove(&key);
+    });
+}
+
 pub fn asset_key(journal: &str, name: &str) -> String {
     format!("{journal}/{}", name.trim().to_ascii_lowercase())
 }

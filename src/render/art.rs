@@ -323,6 +323,30 @@ pub fn token_art_ids(tokens: &[agni_sim::wire::TokenDecl]) -> BTreeMap<String, S
         .collect()
 }
 
+pub fn token_art_url(request: &ArtRequest) -> Option<&'static str> {
+    if request.game != ArtGame::Riftbound {
+        return None;
+    }
+    let token = agni_riftbound::token_table()
+        .into_iter()
+        .find(|token| art_key(&token.name) == art_key(&request.name));
+    let id = request
+        .id
+        .as_deref()
+        .or_else(|| token.as_ref().and_then(|token| token.art.as_deref()))?;
+    match id {
+        "ogn-274-298" => Some("https://cdn.piltoverarchive.com/cards/OGN-274.webp"),
+        "ogn-272-298" => Some("https://cdn.piltoverarchive.com/cards/OGN-272.webp"),
+        "unl-t02" => Some("https://cdn.piltoverarchive.com/cards/UNL-T02.webp"),
+        "sfd-t02" => Some("https://cdn.piltoverarchive.com/cards/SFD-T02.webp"),
+        "sfd-t01" => Some("https://cdn.piltoverarchive.com/cards/SFD-T01.webp"),
+        "ven-t05" => Some("https://cdn.piltoverarchive.com/cards/VEN-T05.webp"),
+        "ven-t06" => Some("https://cdn.piltoverarchive.com/cards/VEN-T06.webp"),
+        "sfd-t03" => Some("https://cdn.piltoverarchive.com/cards/SFD-T03.webp"),
+        _ => None,
+    }
+}
+
 #[cfg(not(target_arch = "wasm32"))]
 mod worker {
     use super::{Arrival, ArtFetcher, ArtGame, ArtQueue, ArtRequest, Fetched};
@@ -438,6 +462,20 @@ mod worker {
 
     impl ArtFetcher for SourceFetcher {
         fn fetch(&mut self, request: &ArtRequest) -> Fetched {
+            if let Some(url) = super::token_art_url(request) {
+                let store =
+                    spirit_core::BlobStore::open(&self.dir).map_err(|error| error.to_string())?;
+                let agent = agni_importers::art::art_agent();
+                return agni_importers::art::fetch_one(
+                    &store,
+                    "riftbound-images",
+                    &agent,
+                    &request.key(),
+                    url,
+                )
+                .map(|(_, bytes)| Some(bytes))
+                .map_err(|error| error.to_string());
+            }
             if let Some(url) = request.playmat_url() {
                 let store =
                     spirit_core::BlobStore::open(&self.dir).map_err(|error| error.to_string())?;
@@ -635,7 +673,7 @@ pub fn queue_visible_art(
     cache: Res<ArtCache>,
     tokens: Res<crate::table::tokens::PluginTokens>,
 ) {
-    if !table.is_changed() && !cache.is_changed() {
+    if !table.is_changed() && !cache.is_changed() && !tokens.is_changed() {
         return;
     }
     let Some(game) = crate::net::game_of_zones(&mirror.view.zones).art_game() else {
@@ -657,10 +695,14 @@ pub fn queue_visible_art(
     mirror: Res<crate::table::Mirror>,
     mut cache: ResMut<ArtCache>,
     tokens: Res<crate::table::tokens::PluginTokens>,
+    time: Res<Time>,
+    mut next_poll: Local<f64>,
 ) {
-    if !table.is_changed() && !cache.is_changed() {
+    let now = time.elapsed_secs_f64();
+    if !table.is_changed() && !cache.is_changed() && !tokens.is_changed() && now < *next_poll {
         return;
     }
+    *next_poll = now + 0.5;
     if crate::net::game_of_zones(&mirror.view.zones).art_game() != Some(ArtGame::Riftbound) {
         return;
     }
@@ -677,7 +719,13 @@ pub fn queue_visible_art(
             let bytes = match &request.id {
                 Some(id) => crate::net::gateway::riftbound_art(id),
                 None => crate::net::gateway::riftbound_art_named(&request.name),
-            }?;
+            };
+            if bytes.is_none() {
+                if let Some(url) = token_art_url(&request) {
+                    crate::net::gateway::request_token_art(&request.name, url, now);
+                }
+            }
+            let bytes = bytes?;
             Some((request.name, bytes))
         })
         .collect();
@@ -819,6 +867,39 @@ pub mod assets {
 mod tests {
     use super::*;
     use agni_core::{CardFace, PlayerId, Zone};
+
+    #[test]
+    fn every_declared_riftbound_token_has_a_runtime_art_source() {
+        let tokens = agni_riftbound::token_table();
+        let ids = token_art_ids(&tokens);
+        for token in tokens {
+            let request =
+                ArtRequest::by_id(ArtGame::Riftbound, &ids[&art_key(&token.name)], &token.name);
+            assert!(token_art_url(&request).is_some(), "{}", token.name);
+            assert_eq!(
+                token_art_url(&request),
+                token_art_url(&ArtRequest::by_name(ArtGame::Riftbound, &token.name)),
+                "older module manifests can still find token art by name",
+            );
+        }
+        assert!(token_art_url(&ArtRequest::by_name(ArtGame::Mtg, "Sand Soldier")).is_none());
+        assert!(
+            token_art_url(&ArtRequest::by_name(ArtGame::Riftbound, "Unlisted token")).is_none()
+        );
+    }
+
+    #[test]
+    #[cfg(not(target_arch = "wasm32"))]
+    #[ignore = "requires the public token image CDN"]
+    fn live_token_art_sources_decode_without_bundled_images() {
+        let agent = agni_importers::art::art_agent();
+        for token in agni_riftbound::token_table() {
+            let request = ArtRequest::by_name(ArtGame::Riftbound, &token.name);
+            let url = token_art_url(&request).unwrap();
+            let bytes = agni_importers::art::fetch_image(&agent, url).unwrap();
+            assert!(decode_image(&bytes).is_ok(), "{}", token.name);
+        }
+    }
 
     struct Fake {
         art: BTreeMap<String, Vec<u8>>,

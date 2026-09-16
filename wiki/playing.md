@@ -99,6 +99,33 @@ presentation and input; they do not change the game rules.
 On a small screen, some controls move into drawers or sheets. Close the topmost
 sheet before expecting Back or Escape to leave the table.
 
+## Order simultaneous triggers
+
+When several triggers happen together, Kai asks you to choose their order,
+even with automatic forced answers enabled. Choose the trigger that should
+resolve last first: the last one placed on the chain resolves first.
+
+For Dusk Rose Lab and a Temporary unit, choose **Temporary first**, then
+**Dusk Rose Lab**. With only one trigger left, Kai may place it automatically.
+The Lab resolves before Temporary and lets you sacrifice the unit for a card
+while it is still there.
+
+## Azir and empowered units
+
+Azir remembers Equipment you played earlier in the turn, even if it has since
+left play. His ability still needs one energy, a ready legend, and a legal
+activation window. A gear without Equip does not meet the condition.
+The Sand Soldier's Weaponmaster choice appears when the token is played;
+domain-specific Equip costs still need to be paid.
+
+After an Empower ability resolves, the Might badge and inspector show the
+rule-calculated value. Steel Paws goes from 0 to 7 without an additional manual
+counter change.
+
+Token images load at runtime. When the content catalog lacks a token image,
+Kai fetches it from Piltover Archive's public image CDN. No card artwork is
+bundled in this source release; an internet connection is needed on first load.
+
 ## If something looks wrong
 
 Missing art and an invalid deck are different problems. An image may still be

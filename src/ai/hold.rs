@@ -1157,7 +1157,7 @@ mod tests {
                 plain("{card 13} trigger", None, Some(13)),
             ],
         );
-        assert!(auto::offer(&order, 0).is_quiet());
+        assert!(!auto::offer(&order, 0).is_quiet());
         assert!(
             !is_quiet(&order, 0),
             "an order that matters goes to the model"

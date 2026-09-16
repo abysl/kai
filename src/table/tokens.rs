@@ -331,7 +331,7 @@ mod tests {
     }
 
     #[test]
-    fn the_m9_tokens_are_placeable_units_whose_artless_faces_fetch_by_name() {
+    fn the_m9_tokens_are_placeable_units_with_runtime_art_prints() {
         let tokens = agni_riftbound::token_table();
         let names: Vec<&str> = tokens.iter().map(|decl| decl.name.as_str()).collect();
         for name in ["Sand Soldier", "Shadow Clone", "Tentacle"] {
@@ -343,7 +343,7 @@ mod tests {
             assert_eq!(face.kind.as_deref(), Some(agni_riftbound::KIND_UNIT));
             assert_eq!(face.might, decl.might);
             assert!(!decl.temporary);
-            assert!(decl.art.is_none(), "{name} has no print to fetch by id");
+            assert!(decl.art.is_some(), "{name} has a print to fetch by id");
         }
         assert_eq!(
             tokens
@@ -354,7 +354,7 @@ mod tests {
         );
         let ids = crate::render::art::token_art_ids(&tokens);
         assert!(ids.contains_key(&crate::render::art::art_key("Sprite")));
-        assert!(!ids.contains_key(&crate::render::art::art_key("Tentacle")));
+        assert!(ids.contains_key(&crate::render::art::art_key("Tentacle")));
         let mut table = agni_core::Table::new();
         table.add_face(
             PlayerId(0),
@@ -375,12 +375,13 @@ mod tests {
         assert_eq!(wanted[0].name, "Tentacle");
         assert_eq!(
             wanted[0].key(),
-            crate::render::art::ArtRequest::by_name(
+            crate::render::art::ArtRequest::by_id(
                 crate::render::art::ArtGame::Riftbound,
+                "ven-t06",
                 "Tentacle"
             )
             .key(),
-            "no id: by name, and the named placeholder stands in when the source has none"
+            "token declarations select their runtime print"
         );
     }
 }

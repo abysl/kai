@@ -36,6 +36,27 @@ Hidden cards require checks from both the owner and other seats. Hiding one
 image is insufficient if labels, previews, hover state, or a stale entity still
 reveal the face.
 
+## Forced answers and ordered prompts
+
+`auto::offer` is the shared classification used by player automation and the
+AI pilot. Requiring every option does not make an ordering prompt forced:
+with multiple trigger choices, return `Offer::Choice`. The order can change
+the result even though the selected set is identical. One remaining trigger
+can still be answered automatically unless the player's settings ask to pause.
+
+Dusk Rose Lab and Temporary are a regression case: placing Temporary first
+lets the Lab resolve first and offer the unit as a sacrifice. Rule resolution
+stays in the plugin; Kai must not choose that order on the player's behalf.
+
+The rules plugin also publishes its computed Might as a counter delta from
+printed Might after accepted actions. This includes conditional statics, buffs,
+and combat modifiers. Kai displays that value without evaluating card scripts.
+
+Token art uses the plugin's print ID, with a known-token name fallback for older
+manifests. Catalog gaps use fixed public image URLs. Browser art polling retries
+asynchronous loads while the table is idle; image bytes stay in runtime caches,
+not in the source repository.
+
 ## Verify a visual change
 
 Run at desktop and phone dimensions, using pointer and touch interactions.

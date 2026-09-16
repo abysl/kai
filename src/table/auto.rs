@@ -277,6 +277,9 @@ fn forced_index(view: &PluginView, summary: &PromptSummary) -> Option<usize> {
             && !matches!(affordance.kind, AffordanceKind::Reveal { .. })
     });
     let remaining = remaining(summary);
+    if summary.why.starts_with(ORDER_TRIGGERS_WHY) && cards.len() > 1 {
+        return None;
+    }
     match cards.first() {
         Some(first) if !others && remaining >= 1 && cards.len() == remaining => Some(*first),
         _ => None,
@@ -950,6 +953,33 @@ mod tests {
         let primary = primary::primary_of(&quiet).unwrap();
         assert_eq!(passing_label(&armed, &primary), Some(PASSING_LABEL));
         assert_eq!(passing_label(&PassThrough::default(), &primary), None);
+    }
+
+    #[test]
+    fn dusk_rose_and_temporary_are_an_ordering_choice_even_when_every_trigger_must_be_selected() {
+        let view = prompt(
+            2,
+            2,
+            0,
+            "order your triggers (last placed resolves first)",
+            vec![
+                offer_row("{card 7} trigger", None, Some(7)),
+                offer_row("{card 8} is Temporary", None, Some(8)),
+            ],
+        );
+        assert_eq!(offer(&view, 0), Offer::Choice);
+        assert_eq!(decide_default(&view), Decision::Wait(Wait::Choice));
+        let remaining = prompt(
+            2,
+            2,
+            1,
+            "order your triggers (last placed resolves first)",
+            vec![offer_row("{card 7} trigger", None, Some(7))],
+        );
+        assert!(matches!(
+            decide_default(&remaining),
+            Decision::Answer { .. }
+        ));
     }
 
     #[test]
