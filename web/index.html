@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>kai</title>
+<link rel="icon" type="image/svg+xml" href="assets/icon/kai.svg">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<style>
+  html, body { margin: 0; height: 100%; height: 100dvh; background: #0d0f0e; overflow: hidden; overscroll-behavior: none; }
+  canvas { width: 100%; height: 100%; height: 100dvh; display: block; outline: none; touch-action: none; overscroll-behavior: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+  #loading { color: #cbd5c0; font: 16px system-ui; position: absolute; top: 45%; width: 100%; text-align: center; padding: 0 24px; box-sizing: border-box; font-style: italic; }
+  #insets { position: fixed; left: 0; top: 0; width: 0; height: 0; visibility: hidden; pointer-events: none;
+    padding-top: env(safe-area-inset-top, 0px); padding-right: env(safe-area-inset-right, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px); padding-left: env(safe-area-inset-left, 0px); }
+</style>
+</head>
+<body>
+<div id="loading"></div>
+<div id="insets"></div>
+<script>
+(() => {
+  const quotes = [
+    ["There is a monster inside all of us.", "Silco"],
+    ["In the pursuit of great, we failed to do good.", "Viktor"],
+    ["What makes you different makes you strong.", "Vander"],
+    ["Nobody wins in war.", "Vander"],
+    ["Sometimes taking a leap forward means leaving a few things behind.", "Jayce"],
+    ["Is there anything so undoing as a daughter?", "Silco"],
+    ["I thought maybe you could love me like you used to, even though I'm different. But you changed too.", "Jinx"],
+    ["We'll show them. We'll show them all.", "Jinx"],
+    ["The only way to defeat a superior enemy is to stop at nothing.", "Silco"],
+    ["Power, real power, doesn't come to those who were born strongest or fastest or smartest. It comes to those who will do anything to achieve it.", "Silco"],
+    ["Loyalty isn't a chain. It's a choice.", "Ekko"],
+    ["Progress is not made by those who obey the rules.", "Viktor"],
+  ];
+  const [line, who] = quotes[Math.floor(Math.random() * quotes.length)];
+  const loading = document.getElementById("loading");
+  loading.textContent = "\u201c" + line + "\u201d";
+  const by = document.createElement("div");
+  by.textContent = "\u2014 " + who + ", Arcane";
+  by.style.cssText = "margin-top: 8px; font-size: 13px; color: #8a9583;";
+  loading.appendChild(by);
+})();
+</script>
+<script>
+(() => {
+  const probe = document.getElementById("insets");
+  const px = (value) => {
+    const parsed = parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+  const readInsets = () => {
+    const style = getComputedStyle(probe);
+    const viewport = window.visualViewport;
+    const keyboard = viewport ? Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop) : 0;
+    window.__kaiInsets = [
+      px(style.paddingTop),
+      px(style.paddingRight),
+      px(style.paddingBottom),
+      px(style.paddingLeft),
+      keyboard,
+    ];
+  };
+  readInsets();
+  window.addEventListener("resize", readInsets);
+  window.addEventListener("orientationchange", readInsets);
+  if (window.visualViewport) window.visualViewport.addEventListener("resize", readInsets);
+})();
+(() => {
+  const state = { ready: false, text: "", error: "", last: null };
+  window.__kaiClipboard = state;
+
+  const settle = (text) => {
+    state.text = typeof text === "string" ? text : "";
+    state.error = "";
+    state.ready = true;
+  };
+
+  const fail = (message) => {
+    if (typeof state.last === "string" && state.last.length > 0) {
+      settle(state.last);
+      return;
+    }
+    state.text = "";
+    state.error = message;
+    state.ready = true;
+  };
+
+  const legacyWrite = (text) => {
+    const previous = document.activeElement;
+    try {
+      const area = document.createElement("textarea");
+      area.value = text;
+      area.setAttribute("readonly", "");
+      area.style.position = "fixed";
+      area.style.top = "-1000px";
+      area.style.opacity = "0";
+      document.body.appendChild(area);
+      area.select();
+      area.setSelectionRange(0, text.length);
+      const copied = document.execCommand("copy");
+      document.body.removeChild(area);
+      if (previous && previous.focus) previous.focus();
+      return copied;
+    } catch (unavailable) {
+      if (previous && previous.focus) previous.focus();
+      return false;
+    }
+  };
+
+  document.addEventListener("paste", (event) => {
+    const data = event.clipboardData;
+    if (!data) return;
+    const text = data.getData("text/plain");
+    if (typeof text === "string" && text.length > 0) state.last = text;
+  });
+
+  window.addEventListener("keydown", (event) => {
+    if (!event.ctrlKey && !event.metaKey) return;
+    const key = (event.key || "").toLowerCase();
+    if (key === "v" || key === "c" || key === "x") event.stopPropagation();
+  }, true);
+
+  window.__kaiClipboardRead = () => {
+    state.ready = false;
+    state.text = "";
+    state.error = "";
+    if (!window.isSecureContext) {
+      fail("the browser only shares the clipboard over https — open this page on kai.rae.blue");
+      return;
+    }
+    const clipboard = navigator.clipboard;
+    if (!clipboard || !clipboard.readText) {
+      fail("this browser will not hand pages the clipboard — click the box and press ctrl/cmd+V instead");
+      return;
+    }
+    clipboard.readText().then(settle).catch((error) => {
+      const name = error && error.name ? error.name : "";
+      if (name === "NotAllowedError") {
+        fail("the browser refused clipboard access — allow paste for this site, or click the box and press ctrl/cmd+V");
+      } else {
+        fail("clipboard read failed: " + ((error && error.message) || name || "unknown error"));
+      }
+    });
+  };
+
+  window.__kaiClipboardWrite = (text) => {
+    const value = typeof text === "string" ? text : String(text);
+    state.last = value;
+    if (window.isSecureContext && navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(value).catch((error) => {
+        if (!legacyWrite(value)) {
+          console.warn("kai: clipboard write refused", error);
+        }
+      });
+      return "";
+    }
+    if (legacyWrite(value)) return "";
+    return "this browser will not let the page write the clipboard";
+  };
+})();
+</script>
+<script>
+  (() => {
+    const LEASE_TTL_MS = 20000;
+    const LEASE_BEAT_MS = 2000;
+    let tab = sessionStorage.getItem("kai-tab");
+    if (!tab) {
+      tab = Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join("");
+      sessionStorage.setItem("kai-tab", tab);
+    }
+    const [holder, stamp] = (localStorage.getItem("kai-node-lease") || "").split(":");
+    const held = holder && holder !== tab && Date.now() - Number(stamp) < LEASE_TTL_MS;
+    sessionStorage.setItem("kai-key-slot", held ? "tab" : "browser");
+    if (held) {
+      console.log("kai: another tab holds this browser's identity — this tab gets its own");
+      return;
+    }
+    const beat = () => localStorage.setItem("kai-node-lease", tab + ":" + Date.now());
+    beat();
+    setInterval(beat, LEASE_BEAT_MS);
+  })();
+</script>
+<script type="module">
+  import init, { kai_autoplay, kai_events, kai_node_id, kai_host_block } from "./hand.js";
+  const HOST_READY_WAIT_MS = 120000;
+  const HOST_READY_POLL_MS = 250;
+  const install = (plan) => {
+    try {
+      kai_autoplay(plan);
+    } catch (refused) {
+      console.error("kai: autoplay plan refused: " + refused);
+    }
+  };
+  const hostReady = (enforced) => kai_host_block(enforced) ?? null;
+  const installWhenHostable = (plan, enforced, since, lastBlock) => {
+    const block = hostReady(enforced);
+    if (block === null) {
+      console.log("kai: autoplay host ready");
+      install(plan);
+      return;
+    }
+    if (block !== lastBlock) console.log("kai: autoplay host waits: " + block);
+    if (Date.now() - since >= HOST_READY_WAIT_MS) {
+      console.warn("kai: autoplay host still blocked after " + HOST_READY_WAIT_MS + " ms: " + block);
+      install(plan);
+      return;
+    }
+    setTimeout(() => installWhenHostable(plan, enforced, since, block), HOST_READY_POLL_MS);
+  };
+  const startPlan = (plan) => {
+    let parsed;
+    try {
+      parsed = JSON.parse(plan);
+    } catch (invalid) {
+      install(plan);
+      return;
+    }
+    if (parsed && parsed.role === "host") {
+      installWhenHostable(plan, parsed.enforced !== false, Date.now(), undefined);
+    } else {
+      install(plan);
+    }
+  };
+  const hangAutoplay = () => {
+    window.kai = {
+      autoplay: (plan) => startPlan(typeof plan === "string" ? plan : JSON.stringify(plan)),
+      events: () => kai_events(),
+      nodeId: () => kai_node_id() ?? null,
+      hostBlock: (enforced = true) => hostReady(enforced),
+    };
+    const plan = new URLSearchParams(window.location.search).get("autoplay");
+    if (plan !== null) startPlan(plan);
+  };
+  init().then(() => { document.getElementById("loading")?.remove(); hangAutoplay(); })
+        .catch((e) => { document.getElementById("loading").textContent = "failed to start: " + e; });
+</script>
+</body>
+</html>

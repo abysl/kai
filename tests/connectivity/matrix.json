@@ -1,0 +1,14 @@
+{
+ "pairs": [
+  {"id": "desktop:desktop", "host": "desktop", "joiner": "desktop", "needs": ["xvfb", "kai-bin"], "ci": "required", "offline": true},
+  {"id": "desktop:web", "host": "desktop", "joiner": "web", "needs": ["xvfb", "kai-bin", "internet", "web-dist"], "ci": "required"},
+  {"id": "web:desktop", "host": "web", "joiner": "desktop", "needs": ["xvfb", "kai-bin", "internet", "web-dist", "web-plugin"], "ci": "required"},
+  {"id": "web:web", "host": "web", "joiner": "web", "needs": ["internet", "web-dist", "web-plugin"], "ci": "required"},
+  {"id": "web:web-lease", "host": "web", "joiner": "web", "needs": ["internet", "web-dist", "web-plugin"], "ci": "extra", "spec": "web-lease"},
+  {"id": "desktop:android", "host": "desktop", "joiner": "android", "needs": ["xvfb", "kai-bin", "internet", "kvm", "apk"], "ci": "ignore"},
+  {"id": "web:android", "host": "web", "joiner": "android", "needs": ["internet", "web-dist", "web-plugin", "kvm", "apk"], "ci": "ignore"},
+  {"id": "android:desktop", "host": "android", "joiner": "desktop", "needs": ["xvfb", "kai-bin", "internet", "kvm", "apk"], "ci": "ignore"},
+  {"id": "android:web", "host": "android", "joiner": "web", "needs": ["internet", "web-dist", "kvm", "apk"], "ci": "ignore"},
+  {"id": "android:android", "host": "android", "joiner": "android", "needs": ["internet", "kvm", "apk"], "ci": "ignore"}
+ ]
+}

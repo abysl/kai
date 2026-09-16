@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=kai
+GenericName=Card table
+Comment=agni card game table
+Exec=kai
+Icon=kai
+Terminal=false
+Categories=Game;CardGame;
+Keywords=agni;cards;mtg;riftbound;
+StartupWMClass=kai

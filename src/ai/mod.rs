@@ -1,0 +1,16 @@
+#[cfg(not(target_arch = "wasm32"))]
+pub mod brain;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod cards;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod driver;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod hold;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod local;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod nanogpt;
+pub mod random;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod seat;
+pub mod soak;

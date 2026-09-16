@@ -1,0 +1,95 @@
+plugins {
+    id "com.android.application"
+}
+
+static String gitValue(File dir, List<String> command) {
+    try {
+        def process = new ProcessBuilder(command).directory(dir).start()
+        def text = process.inputStream.text.trim()
+        process.waitFor()
+        return process.exitValue() == 0 && !text.isEmpty() ? text : null
+    } catch (Exception unavailable) {
+        return null
+    }
+}
+
+def sourceRoot = rootProject.projectDir
+def commitEpoch = System.getenv("KAI_BUILD_EPOCH") ?: gitValue(sourceRoot, ["git", "log", "-1", "--format=%ct", "HEAD"])
+def commitSha = System.getenv("KAI_BUILD_SHA") ?: gitValue(sourceRoot, ["git", "rev-parse", "--short=8", "HEAD"])
+def buildEpoch = commitEpoch ? commitEpoch as long : System.currentTimeMillis().intdiv(1000)
+def kaiVersionCode = buildEpoch.intdiv(60) as int
+def kaiVersionName = "0.1.${kaiVersionCode}".toString()
+def kaiReleaseName = "kai-${kaiVersionName}+${commitSha ?: "local"}.apk".toString()
+
+def kaiAbis = (project.findProperty("kaiAbis") ?: "arm64-v8a").toString().split(",").collect { it.trim() }.findAll { !it.isEmpty() }
+def keystoreBase64 = System.getenv("KAI_KEYSTORE_BASE64")
+def ingestToken = System.getenv("KAI_INGEST_TOKEN_ANDROID") ?: ""
+def buildRoot = layout.buildDirectory.get().asFile
+def releaseKeystore = new File(buildRoot, "signing/kai-release.jks")
+def releaseNameFile = new File(buildRoot, "kai-release-name")
+def telemetryAssetDir = new File(buildRoot, "generated/kai-telemetry-assets")
+def telemetryAsset = new File(telemetryAssetDir, "telemetry-default.toml")
+
+buildRoot.mkdirs()
+releaseNameFile.text = kaiReleaseName
+telemetryAssetDir.mkdirs()
+telemetryAsset.text = ingestToken.isEmpty() ? "" : "token = \"${ingestToken}\"\n"
+
+android {
+    namespace "blue.rae.kai"
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "blue.rae.kai"
+        minSdk 28
+        targetSdk 34
+        versionCode kaiVersionCode
+        versionName kaiVersionName
+        ndk {
+            abiFilters.addAll(kaiAbis)
+        }
+    }
+
+    signingConfigs {
+        release {
+            if (keystoreBase64) {
+                releaseKeystore.parentFile.mkdirs()
+                releaseKeystore.bytes = keystoreBase64.replaceAll("\\s", "").decodeBase64()
+                storeFile releaseKeystore
+                storePassword System.getenv("KAI_KEYSTORE_PASSWORD")
+                keyAlias System.getenv("KAI_KEY_ALIAS")
+                keyPassword System.getenv("KAI_KEY_PASSWORD")
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            signingConfig keystoreBase64 ? signingConfigs.release : signingConfigs.debug
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    sourceSets {
+        main {
+            assets.srcDirs += files("../../assets")
+            assets.srcDirs += files(telemetryAssetDir)
+        }
+    }
+
+    packaging {
+        jniLibs {
+            useLegacyPackaging true
+        }
+    }
+}
+
+dependencies {
+    implementation "androidx.appcompat:appcompat:1.6.1"
+    implementation "androidx.games:games-activity:4.4.0"
+    implementation "com.journeyapps:zxing-android-embedded:4.3.0"
+}
