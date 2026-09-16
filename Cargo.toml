@@ -30,8 +30,8 @@ bevy = { version = "0.19", features = [
 bevy_egui = "0.42"
 parking_lot = "0.12"
 qrcode = { version = "0.14", default-features = false }
-spirit-core = { git = "https://git.rae.blue/abysl/spirit" }
-spirit-sdk = { git = "https://git.rae.blue/abysl/spirit" }
+spirit-core = { git = "https://git.rae.blue/abysl/spirit-library" }
+spirit-sdk = { git = "https://git.rae.blue/abysl/spirit-library" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 web-time = "1"
@@ -45,7 +45,7 @@ agni-importers = { git = "https://git.rae.blue/abysl/agni", default-features = f
 
 [target.'cfg(target_os = "android")'.dependencies]
 jni = "0.21"
-spirit-node = { git = "https://git.rae.blue/abysl/spirit", default-features = false, features = [
+spirit-node = { git = "https://git.rae.blue/abysl/spirit-library", default-features = false, features = [
   "native",
 ] }
 tokio = { version = "1", features = ["rt-multi-thread", "time"] }
@@ -55,7 +55,7 @@ ureq = "2"
 arboard = "3"
 image = { version = "0.25", default-features = false, features = ["png"] }
 winit = { version = "0.30", default-features = false }
-spirit-node = { git = "https://git.rae.blue/abysl/spirit", default-features = false, features = [
+spirit-node = { git = "https://git.rae.blue/abysl/spirit-library", default-features = false, features = [
   "native",
 ] }
 tokio = { version = "1", features = ["rt-multi-thread", "time"] }
@@ -72,7 +72,7 @@ send_wrapper = "0.6"
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 js-sys = "0.3"
-spirit-node = { git = "https://git.rae.blue/abysl/spirit", default-features = false }
+spirit-node = { git = "https://git.rae.blue/abysl/spirit-library", default-features = false }
 tokio = { version = "1", default-features = false, features = [
   "sync",
   "macros",
