@@ -89,6 +89,7 @@ pub mod toast;
 pub mod tokens;
 mod tuning;
 mod ui;
+pub mod undo;
 pub mod winner;
 pub mod zones;
 
@@ -131,6 +132,9 @@ impl Plugin for CardTablePlugin {
             .init_resource::<camera::Extent>()
             .init_resource::<MySeat>()
             .init_resource::<SessionInfo>()
+            .init_resource::<undo::UndoUi>()
+            .add_message::<net::undo::Command>()
+            .add_systems(EguiPrimaryContextPass, undo::undo_ui)
             .init_resource::<Held>()
             .init_resource::<Selected>()
             .init_resource::<interaction::Pinned>()
@@ -283,6 +287,7 @@ impl Plugin for CardTablePlugin {
                 (
                     toast::note_intents,
                     net::drain_net,
+                    net::undo::route,
                     net::route_redeal,
                     net::route_annotations,
                     net::route_deck_deals,
@@ -562,6 +567,8 @@ pub enum Recovery {
 }
 #[derive(Resource, Debug, Default)]
 pub struct SessionInfo {
+    pub undo: agni_net::session::UndoStatus,
+    pub undo_generation: u64,
     pub role: SessionRole,
     pub status: String,
     pub roster: Vec<agni_net::session::SeatInfo>,

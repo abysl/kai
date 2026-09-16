@@ -151,6 +151,9 @@ pub struct Seat {
     pub notices: Vec<String>,
     pub refusals: u64,
     pub own_folds: u64,
+    pub undo: agni_net::session::UndoStatus,
+    pub undo_voted: Option<u64>,
+    pub rolled_back: bool,
 }
 
 impl Default for Seat {
@@ -179,6 +182,9 @@ impl Seat {
             notices: Vec::new(),
             refusals: 0,
             own_folds: 0,
+            undo: Default::default(),
+            undo_voted: None,
+            rolled_back: false,
         }
     }
 
@@ -630,6 +636,21 @@ pub fn handle_event(seat: &mut Seat, event: NetToGame, out: &mut Out) {
         NetToGame::Connected => out.line("connected — waiting for a seat"),
         NetToGame::FromHost { msg } => match absorb_while_pending(seat, msg) {
             None => {}
+            Some(HostMsg::Undo { status }) => seat.undo = status,
+            Some(HostMsg::RolledBack { next_seq, faces }) => {
+                if let Some(session) = seat.session.as_mut() {
+                    match session.rollback(next_seq, faces) {
+                        Ok(()) => {
+                            seat.rolled_back = true;
+                            seat.last_seq = u64::MAX;
+                            out.line("rollback accepted");
+                        }
+                        Err(fault) => {
+                            seat.ended = Some(format!("rollback failed: {fault}"));
+                        }
+                    }
+                }
+            }
             Some(HostMsg::Welcome {
                 version,
                 seat: mine,
@@ -643,6 +664,8 @@ pub fn handle_event(seat: &mut Seat, event: NetToGame, out: &mut Out) {
                     return;
                 }
                 seat.pending = Some(PendingWelcome::new(mine, roster, log));
+                seat.undo = Default::default();
+                seat.undo_voted = None;
                 finish_join(seat, out);
             }
             Some(HostMsg::Roster { roster }) => {
@@ -1660,6 +1683,28 @@ impl Driver {
         if self.seat.pending.is_some() {
             finish_join(&mut self.seat, &mut self.out);
         }
+        if std::mem::take(&mut self.seat.rolled_back) {
+            self.seat.secrets.rearm();
+            self.last_reveal_seq = u64::MAX;
+            self.last_decision = None;
+            self.sent = None;
+            self.pilot.release();
+            if let Some(Mind::Llm(brain)) = self.mind.as_mut() {
+                brain.forget_game();
+            }
+        }
+        if let Some(proposal) = &self.seat.undo.proposal {
+            if proposal.waiting.contains(&self.seat.seat)
+                && self.seat.undo_voted != Some(proposal.id)
+            {
+                link.send(ClientMsg::VoteUndo {
+                    id: proposal.id,
+                    accept: true,
+                });
+                self.seat.undo_voted = Some(proposal.id);
+            }
+            return self.seat.ended.is_none() && !link.closed();
+        }
         if std::mem::take(&mut self.seat.new_game) {
             self.auto_deal = self.seat.deck.is_some();
             self.last_decision = None;
@@ -1968,6 +2013,41 @@ pub fn nudge(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn undo_ai_votes_once_and_waits_for_the_host() {
+        #[derive(Default)]
+        struct TestLink(Vec<ClientMsg>);
+        impl Link for TestLink {
+            fn send(&mut self, msg: ClientMsg) {
+                self.0.push(msg);
+            }
+            fn poll(&mut self) -> Vec<NetToGame> {
+                Vec::new()
+            }
+        }
+        let mut driver = Driver::new(Out::quiet());
+        driver.seat.seat = 1;
+        driver.seat.undo.proposal = Some(agni_net::session::UndoProposal {
+            id: 7,
+            requester: 0,
+            actions: 2,
+            waiting: vec![1],
+        });
+        let mut link = TestLink::default();
+        assert!(driver.tick(&mut link));
+        assert!(driver.tick(&mut link));
+        assert_eq!(
+            link.0,
+            vec![ClientMsg::VoteUndo {
+                id: 7,
+                accept: true
+            }]
+        );
+        driver.seat.undo.proposal = None;
+        assert!(driver.tick(&mut link));
+        assert_eq!(link.0.len(), 1);
+    }
 
     #[test]
     fn spawn_takes_a_multi_word_token_name_before_the_zone() {

@@ -4,6 +4,25 @@ Audience: players with an installed or running copy of Kai. No programming
 knowledge is needed. For installation from source, use the
 [development guide](development.md).
 
+## Undo a mistake
+
+At a hosted table, press **Shift+Backspace** or **Ctrl+Z** once for each action
+you want to undo. Kai waits one second after your last press, then sends one
+request for the total. You can cancel the queued request before it is sent.
+`R` still reveals a card; typing in a text field does not request a table undo.
+
+Every other seated player sees an **Agree / Decline** prompt. The table only
+rolls back after everyone agrees. If somebody declines, disconnects, or makes
+another game action, the request is cancelled. Local automated opponents agree
+automatically. A host playing alone needs no vote.
+
+Undo affects the last actions at the whole table, including your opponent's,
+not just your own actions. A card play and its automatic reveal count as one
+action. Up to 64 actions are kept; joining, dealing/reloading a deck, and starting
+a new game clear that history. Undo restores game state, but cannot make someone
+forget a card they already saw. All players need a compatible version of Kai.
+The offline free-form sample table has no session history and does not support undo.
+
 ## Start a table
 
 Kai opens without dealing cards. Choose a game on the home screen, then use

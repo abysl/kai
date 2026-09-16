@@ -135,7 +135,12 @@ pub struct Hotkey {
     pub effect: &'static str,
 }
 
-pub const HOTKEYS: [Hotkey; 16] = [
+pub const HOTKEYS: [Hotkey; 17] = [
+    Hotkey {
+        key: "Shift+Backspace · Ctrl+Z",
+        effect:
+            "request undo: one action per press, sent after one second; other players must agree",
+    },
     Hotkey {
         key: "Space (W)",
         effect: "the primary button",

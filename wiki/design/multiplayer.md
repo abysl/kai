@@ -47,7 +47,22 @@ with `KAI_DEFAULT_PEERS`, as described in the development guide.
 Clipboard access generally requires a secure context. Test browser behavior
 independently from native behavior.
 
-## Verification
+## Undo requests
+
+`table/undo_batch.rs` counts presses of Shift+Backspace or Ctrl+Z and restarts
+a one-second trailing debounce after each press. Counts are capped at the
+history reported by the host. Text entry is excluded; R remains reveal.
+
+`net/undo.rs` routes requests and votes without changing game state itself.
+Agni owns checkpoints, revision checks, consent, and restoration. A rollback
+frame supplies the retained log boundary and only the receiving seat's private
+faces. Clients replay that prefix with their pinned engine/plugin, discard
+optimistic intents and old face caches, and refresh the rendered table.
+
+Wire version 7 adds undo status, request, vote, and rollback messages. Older
+peers must update together. There is no automatic mixed-version fallback.
+
+## Verification checklist
 
 Use [connectivity tests](../../tests/connectivity/README.md) for supported
 platform pairs. Also test refused joins, protocol mismatches, missing modules,

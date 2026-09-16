@@ -82,7 +82,7 @@ A token alone no longer enables shipping. Do not commit these values.
 ## Checks
 
 The PR check is `bash ci/check.sh`: it runs the dependency-free network-default
-tests, then compiles the library, binaries, and test targets with the `headless`
+and undo-debounce/shortcut tests, then compiles the library, binaries, and test targets with the `headless`
 feature. It does not launch the GUI, execute the full application test suite,
 build Android/WebAssembly, or run network playtests.
 Despite its name, `headless` enables the command-line seat but does not remove

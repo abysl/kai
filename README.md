@@ -13,6 +13,7 @@ they do not yet have identical capabilities or a finished installation experienc
 - Use a game plugin to validate actions and guide play.
 - Build, import, save, and share Riftbound decks.
 - Host a table or join another player using an invitation.
+- Undo table actions with the other players' agreement.
 - Use local automated opponents on native builds.
 
 Rules support depends on the selected plugin. Kai is not an official client for

@@ -8,6 +8,7 @@ pub mod node;
 #[cfg(target_arch = "wasm32")]
 pub mod page;
 pub mod peers;
+pub mod undo;
 
 use crate::table::{
     CardDropped, DealGeneration, ExhaustToggled, GameTable, Mirror, MySeat, PlayerCount, Recovery,
@@ -295,6 +296,7 @@ pub struct HostState {
     conns: Conns,
     conn_nodes: BTreeMap<u64, String>,
     new_game_asked: Option<u8>,
+    undo_sent: Option<agni_net::session::UndoStatus>,
 }
 
 impl HostState {
@@ -307,6 +309,7 @@ impl HostState {
 
 impl HostState {
     fn clear(&mut self) {
+        self.undo_sent = None;
         self.session = None;
         self.conns.clear();
         self.conn_nodes.clear();
@@ -400,7 +403,22 @@ impl HostState {
             return false;
         };
         match msg {
+            ClientMsg::RequestUndo { actions, revision } => {
+                let Some(&seat) = self.conns.seats.get(&conn) else {
+                    return false;
+                };
+                let result = session.request_undo(seat, actions, revision);
+                undo::publish_result(session, &self.conns, info, result, Some(conn))
+            }
+            ClientMsg::VoteUndo { id, accept } => {
+                let Some(&seat) = self.conns.seats.get(&conn) else {
+                    return false;
+                };
+                let result = session.vote_undo(seat, id, accept);
+                undo::publish_result(session, &self.conns, info, result, Some(conn))
+            }
             ClientMsg::Join { name, version } => {
+                self.undo_sent = None;
                 if let Some(reason) = version_mismatch(version) {
                     send_to(conn, HostMsg::End { reason });
                     return false;
@@ -738,7 +756,7 @@ impl PendingWelcome {
 
     pub fn absorb(&mut self, msg: HostMsg) -> Option<HostMsg> {
         match msg {
-            HostMsg::Entry { .. } | HostMsg::Faces { .. } => {
+            HostMsg::Entry { .. } | HostMsg::Faces { .. } | HostMsg::RolledBack { .. } => {
                 self.queued.push(msg);
                 None
             }
@@ -769,6 +787,7 @@ impl PendingWelcome {
                     session.apply(entry)?;
                 }
                 HostMsg::Faces { faces } => session.add_faces(faces),
+                HostMsg::RolledBack { next_seq, faces } => session.rollback(next_seq, faces)?,
                 _ => {}
             }
         }
@@ -1140,6 +1159,19 @@ fn handle_host_msg(
         _ => msg,
     };
     match msg {
+        HostMsg::Undo { status } => info.undo = status,
+        HostMsg::RolledBack { next_seq, faces } => {
+            if let Some(session) = client.session.as_mut() {
+                match session.rollback(next_seq, faces) {
+                    Ok(()) => {
+                        refresh(table, mirror, session.table(), session.view());
+                        info.status = "rollback accepted".into();
+                        info.undo_generation += 1;
+                    }
+                    Err(fault) => replica_failed(info, &fault),
+                }
+            }
+        }
         HostMsg::Welcome {
             version,
             seat,
@@ -1153,6 +1185,7 @@ fn handle_host_msg(
                 return;
             }
             client.pending = Some(PendingWelcome::new(seat, roster, log));
+            info.undo = Default::default();
             try_finish_join(
                 table, mirror, generation, info, my_seat, view, players, client,
             );

@@ -70,6 +70,12 @@ impl RollSecrets {
         self.secrets.clear();
         self.revealed.clear();
     }
+
+    pub fn rearm(&mut self) {
+        for revealed in self.revealed.values_mut() {
+            *revealed = false;
+        }
+    }
 }
 
 pub fn action_bytes(
@@ -422,6 +428,8 @@ pub fn plugin_hotkeys(
     if !menu.at_table()
         || panel.view.affordances.is_empty()
         || keys.get_just_pressed().next().is_none()
+        || ((keys.pressed(KeyCode::ControlLeft) || keys.pressed(KeyCode::ControlRight))
+            && keys.just_pressed(KeyCode::KeyZ))
     {
         return;
     }
@@ -1407,6 +1415,19 @@ mod tests {
         assert!(action_bytes(&unknown, &mut secrets, &fresh).is_none());
         let plain = offer("end turn", None, 2);
         assert_eq!(action_bytes(&plain, &mut secrets, &fresh).unwrap(), [2]);
+    }
+
+    #[test]
+    fn undo_rearms_the_original_dice_secret_without_changing_its_commitment() {
+        let mut secrets = RollSecrets::default();
+        let original = [4; dice::SECRET_LEN];
+        let commitment = secrets.commit(7, original);
+        assert_eq!(secrets.take_reveal(7), Some(original));
+        assert_eq!(secrets.take_reveal(7), None);
+        secrets.rearm();
+        assert_eq!(secrets.commit(7, [9; dice::SECRET_LEN]), commitment);
+        assert_eq!(secrets.take_reveal(7), Some(original));
+        assert_eq!(secrets.take_reveal(7), None);
     }
 
     #[test]
