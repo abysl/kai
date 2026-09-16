@@ -1,3 +1,4 @@
+use super::selection::{Selection, Source};
 use agni_sim::engine::{
     AbiEngine, AbiPlugin, CallFault, Engine, ModuleCall, NativeEngine, PluginModule,
     ENGINE_GAS_BUDGET, PLUGIN_GAS_BUDGET,
@@ -19,34 +20,27 @@ struct LoadedEngine {
 thread_local! {
     static MODULE: RefCell<Option<LoadedEngine>> = const { RefCell::new(None) };
     static STATUS: RefCell<String> = const { RefCell::new(String::new()) };
+    static SELECTION: RefCell<Selection> = RefCell::new(Selection::default());
 }
 
 pub fn boot() {
     crate::engine::modules::fetch_bundle();
     wasm_bindgen_futures::spawn_local(async {
-        match fetch_bundled_module().await {
+        let fetched =
+            n0_future::time::timeout(std::time::Duration::from_secs(20), fetch_bundled_module())
+                .await
+                .unwrap_or_else(|_| Err("bundle download timed out".into()));
+        match fetched {
             Ok((module, bytes)) => {
                 let hash = *blake3::hash(&bytes).as_bytes();
                 let provenance = format!(
-                    "engine bundled from ./engine.wasm @ {} — no store engine yet",
+                    "engine bundled from ./engine.wasm @ {}",
                     crate::engine::modules::short_hex(&hash_hex(&hash))
                 );
-                let installed = MODULE.with(|slot| {
-                    let slot = &mut *slot.borrow_mut();
-                    if slot.is_some() {
-                        return false;
-                    }
-                    *slot = Some(LoadedEngine {
-                        module,
-                        bytes: bytes.clone(),
-                        hash,
-                        provenance: provenance.clone(),
+                if let Err(error) = install_module(module, &bytes, provenance, Source::Bundle) {
+                    STATUS.with(|status| {
+                        *status.borrow_mut() = format!("bundled engine refused: {error}")
                     });
-                    true
-                });
-                if installed {
-                    crate::net::node::serve_bytes(bytes);
-                    STATUS.with(|status| *status.borrow_mut() = provenance);
                 }
             }
             Err(error) => {
@@ -55,6 +49,7 @@ pub fn boot() {
                 STATUS.with(|status| *status.borrow_mut() = line);
             }
         }
+        SELECTION.with(|selection| selection.borrow_mut().bundle_finished());
     });
 }
 
@@ -79,10 +74,22 @@ pub fn engine_bytes() -> Option<Vec<u8>> {
     MODULE.with(|slot| slot.borrow().as_ref().map(|loaded| loaded.bytes.clone()))
 }
 
-pub fn install_engine(bytes: &[u8], provenance: String) -> Result<(), String> {
+pub fn install_engine(bytes: &[u8], provenance: String) -> Result<bool, String> {
     let module = compile(bytes)?;
+    install_module(module, bytes, provenance, Source::Gateway)
+}
+
+fn install_module(
+    module: js_sys::WebAssembly::Module,
+    bytes: &[u8],
+    provenance: String,
+    source: Source,
+) -> Result<bool, String> {
     let hash = *blake3::hash(bytes).as_bytes();
     engine_from_module(&module, hash)?;
+    if !SELECTION.with(|selection| selection.borrow_mut().adopt(source)) {
+        return Ok(false);
+    }
     MODULE.with(|slot| {
         *slot.borrow_mut() = Some(LoadedEngine {
             module,
@@ -93,7 +100,7 @@ pub fn install_engine(bytes: &[u8], provenance: String) -> Result<(), String> {
     });
     STATUS.with(|status| *status.borrow_mut() = provenance);
     crate::net::node::serve_bytes(bytes.to_vec());
-    Ok(())
+    Ok(true)
 }
 
 pub fn instantiate_loaded() -> Result<Box<dyn Engine>, String> {
@@ -175,6 +182,9 @@ pub fn hosting_engine() -> Result<(Box<dyn Engine>, Option<String>), String> {
 }
 
 pub fn engine_block() -> Option<String> {
+    if SELECTION.with(|selection| selection.borrow().bundle_pending()) {
+        return Some("bundled engine is still loading — try again in a moment".into());
+    }
     if loaded_engine_hash().is_some() {
         return None;
     }

@@ -4902,7 +4902,7 @@ dependencies = [
 
 [[package]]
 name = "kai"
-version = "0.19.0"
+version = "0.19.1"
 dependencies = [
  "agni-core",
  "agni-deck",
@@ -4922,6 +4922,7 @@ dependencies = [
  "image",
  "jni 0.21.1",
  "js-sys",
+ "n0-future",
  "parking_lot",
  "qrcode",
  "send_wrapper",

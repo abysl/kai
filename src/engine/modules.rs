@@ -1927,7 +1927,8 @@ mod platform {
                 short_hex(&hash_hex)
             );
             match crate::engine::web::install_engine(&bytes, provenance.clone()) {
-                Ok(()) => set_status(provenance),
+                Ok(true) => set_status(provenance),
+                Ok(false) => {}
                 Err(error) => set_status(format!("store engine refused: {error}")),
             }
         });

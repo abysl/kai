@@ -33,3 +33,16 @@ Verification before release:
 
 The browser target was compile-checked; these local interactive checks used
 desktop executables, not a physical Android device or browser gameplay.
+
+## Post-deployment compatibility check
+
+The v0.19.0 browser-to-browser smoke test succeeded on the public app. Comparing
+the web and signed Android artifacts found identical bundled engine and plugin
+bytes, but the browser was overriding its bundle with an older gateway engine.
+That would separate browser and Android matchmaking pools despite identical
+application releases.
+
+The v0.19.1 correction makes the browser prefer its valid engine bundle in
+either download order and wait for bundle resolution before hosting. A timed-out
+or invalid bundle still permits the gateway fallback. Arrival-order and fallback
+tests cover the selection policy; matching still compares actual module pins.
