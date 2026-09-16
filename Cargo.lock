@@ -4901,7 +4901,7 @@ dependencies = [
 
 [[package]]
 name = "kai"
-version = "0.16.4"
+version = "0.16.5"
 dependencies = [
  "agni-core",
  "agni-deck",

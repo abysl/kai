@@ -62,12 +62,19 @@ Android has a separate environment under `android/`.
 
 ## Optional service configuration
 
-Public builds do not contain development-peer IDs or a default log collector.
-Join a table through its invitation, or configure native discovery seeds with
-`KAI_DEFAULT_PEERS` (comma-separated endpoint tickets or IDs).
-Browser gateway integration uses the application's own origin where available.
+Kai includes two public content-peer endpoint IDs so a fresh client can discover
+content. These are public network identities, not server addresses or credentials.
+On native builds, `KAI_DEFAULT_PEERS` replaces those defaults with comma-separated
+endpoint tickets or IDs; set it to `none` to disable automatic seeding.
+Join a multiplayer table through its invitation.
 
-Desktop log shipping needs both `KAI_INGEST_URL` and `KAI_INGEST_TOKEN`, or
+The [public browser app](https://kai.rae.blue) loads content through its
+same-origin `/gateway/` API. Other browser hosts can provide the same API at
+their own origin. Public runtime services belong in user-facing documentation;
+private hostnames, credentials, and deployment configuration do not.
+
+There is no default log collector. Desktop log shipping needs both
+`KAI_INGEST_URL` and `KAI_INGEST_TOKEN`, or
 equivalent `url` and `token` fields in the local telemetry configuration.
 Android configuration and browser-origin defaults likewise need both values.
 A token alone no longer enables shipping. Do not commit these values.

@@ -36,8 +36,13 @@ as a second join in the deterministic log.
 ## Browser differences
 
 Browsers use their supported endpoint/runtime path and may need an HTTP gateway
-for operations blocked by cross-origin restrictions. A gateway must be supplied
-by the application environment; it is not a required private service.
+for operations blocked by cross-origin restrictions. The public browser app at
+<https://kai.rae.blue> supplies a same-origin `/gateway/` API. Other hosts can
+provide that API at their own origin; clients do not need backend server addresses.
+
+`src/net/defaults.rs` seeds public content peers by endpoint ID, without baking
+in their hosting topology. Native builds can replace or disable those seeds
+with `KAI_DEFAULT_PEERS`, as described in the development guide.
 
 Clipboard access generally requires a secure context. Test browser behavior
 independently from native behavior.

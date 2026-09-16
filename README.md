@@ -21,9 +21,13 @@ interaction is implemented correctly.
 
 ## Try it or contribute
 
-This repository contains source code, not a ready-to-run card collection.
-Building the application currently requires development tools and a neighboring
-checkout of its game framework.
+You can [try Kai in your browser](https://kai.rae.blue) without installing
+development tools. The browser app uses a public content gateway to load
+game content; availability depends on the service and your network connection.
+
+This repository contains source code, not a bundled card collection.
+Building from source currently requires development tools and a neighboring
+checkout of the game framework.
 
 Start with the [development guide](wiki/development.md) to build from source.
 Once it is running, the [player guide](wiki/playing.md) explains the screens,

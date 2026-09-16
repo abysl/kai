@@ -3,7 +3,16 @@ pub struct DefaultPeer {
     pub node_id: &'static str,
 }
 
-pub const DEFAULT_PEERS: [DefaultPeer; 0] = [];
+pub const DEFAULT_PEERS: [DefaultPeer; 2] = [
+    DefaultPeer {
+        label: "content peer 1",
+        node_id: "82caf003a16275662b7128ff6c6f676d59358cb2bf539c062681bab0f6551264",
+    },
+    DefaultPeer {
+        label: "content peer 2",
+        node_id: "f097c2b34c11c6350fc9485913e220051e080e3d0bfba9b0b49d418e6f481dbb",
+    },
+];
 
 pub const ENV_OVERRIDE: &str = "KAI_DEFAULT_PEERS";
 
@@ -36,8 +45,15 @@ mod tests {
     use super::*;
 
     #[test]
-    fn public_builds_have_no_baked_development_peers() {
-        assert!(DEFAULT_PEERS.is_empty());
+    fn public_content_peers_have_distinct_endpoint_ids_and_labels() {
+        assert_eq!(DEFAULT_PEERS.len(), 2);
+        assert_ne!(DEFAULT_PEERS[0].node_id, DEFAULT_PEERS[1].node_id);
+        assert_ne!(DEFAULT_PEERS[0].label, DEFAULT_PEERS[1].label);
+        for peer in &DEFAULT_PEERS {
+            assert_eq!(peer.node_id.len(), 64);
+            assert!(peer.node_id.bytes().all(|byte| byte.is_ascii_hexdigit()));
+            assert_eq!(label_of(peer.node_id), Some(peer.label));
+        }
         assert_eq!(label_of("https://example.com"), None);
     }
 
