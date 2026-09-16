@@ -99,6 +99,14 @@ presentation and input; they do not change the game rules.
 On a small screen, some controls move into drawers or sheets. Close the topmost
 sheet before expecting Back or Escape to leave the table.
 
+## Mulligans and recycling
+
+Choose which cards to mulligan or recycle as before. When those cards need to
+be shuffled, each player's app contributes to the shuffle automatically; there
+is no extra **roll** click, including for the other player's mulligan. This
+does not choose cards for you or pass a response window. The opening roll for
+first player remains manual. Both players should update for automatic shuffling.
+
 ## Order simultaneous triggers
 
 When several triggers happen together, Kai asks you to choose their order,

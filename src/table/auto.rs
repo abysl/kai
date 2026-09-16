@@ -329,6 +329,20 @@ fn lone_roll(view: &PluginView) -> Option<usize> {
     roll
 }
 
+fn shuffle_commit(view: &PluginView) -> Option<usize> {
+    let prompt = view.prompt.as_ref()?;
+    if prompt.optional
+        || prompt.min != prompt.max
+        || prompt.max < 2
+        || prompt.picked != prompt.max
+        || !prompt.why.starts_with("roll to shuffle ")
+        || !prompt.why.ends_with(" recycled cards")
+    {
+        return None;
+    }
+    lone_roll(view)
+}
+
 fn beyond_pass(view: &PluginView) -> Offer {
     if let Some(index) = lone_roll(view) {
         return Offer::Forced(index);
@@ -417,6 +431,9 @@ pub fn decide(
     hold: &HoldFocus,
     through: &PassThrough,
 ) -> Decision {
+    if let Some(index) = shuffle_commit(view) {
+        return Decision::Answer { index, after_ms: 0 };
+    }
     if let Some(summary) = &view.prompt {
         if summary.seat != me {
             return Decision::Wait(Wait::Theirs);
@@ -703,6 +720,81 @@ mod tests {
             &HoldFocus::Off,
             &PassThrough::default(),
         )
+    }
+
+    fn shuffle_view(seat: u8) -> PluginView {
+        let mut view = prompt(
+            2,
+            2,
+            2,
+            "roll to shuffle 2 recycled cards",
+            vec![Affordance {
+                kind: AffordanceKind::Commit { roll: 0x1_0001 },
+                ..offer_row("roll", None, None)
+            }],
+        );
+        view.prompt.as_mut().unwrap().seat = seat;
+        view
+    }
+
+    #[test]
+    fn recycling_commits_automatically_for_every_player_without_a_delay() {
+        let prefs = Prefs {
+            auto_pass: false,
+            ask_anyway: true,
+            order_triggers: true,
+            assign_damage: true,
+        };
+        for owner in 0..2 {
+            for me in 0..2 {
+                assert_eq!(
+                    decide(
+                        &shuffle_view(owner),
+                        me,
+                        &prefs,
+                        &Stops::default(),
+                        &HoldFocus::Held,
+                        &PassThrough::default(),
+                    ),
+                    Decision::Answer {
+                        index: 0,
+                        after_ms: 0
+                    },
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn automatic_shuffle_does_not_choose_mulligans_or_bypass_other_choices() {
+        let mulligan = prompt(
+            0,
+            2,
+            0,
+            "set aside up to 2 cards to redraw",
+            vec![
+                offer_row("set aside {card 5}", None, Some(5)),
+                offer_row("keep", None, None),
+            ],
+        );
+        assert_eq!(decide_default(&mulligan), Decision::Wait(Wait::Choice));
+        let mut opening = shuffle_view(0);
+        opening.prompt = None;
+        assert_eq!(decide_default(&opening), Decision::Wait(Wait::NoPass));
+        let mut disabled = shuffle_view(0);
+        disabled.affordances[0].enabled = false;
+        assert!(decide_default(&disabled).fires().is_none());
+        let mut selectable = shuffle_view(0);
+        selectable
+            .affordances
+            .push(offer_row("cancel", Some("x"), None));
+        assert!(decide_default(&selectable).fires().is_none());
+        assert!(decide_default(&with_react(shuffle_view(0)))
+            .fires()
+            .is_none());
+        let mut unfinished = shuffle_view(0);
+        unfinished.prompt.as_mut().unwrap().picked = 1;
+        assert!(decide_default(&unfinished).fires().is_none());
     }
 
     #[test]
@@ -1251,7 +1343,13 @@ mod tests {
             Offer::Forced(0),
             "a lone roll behind another seat's prompt is still the seat's forced move"
         );
-        assert_eq!(decide_default(&roll(Some(1))), Decision::Wait(Wait::Theirs));
+        assert_eq!(
+            decide_default(&roll(Some(1))),
+            Decision::Answer {
+                index: 0,
+                after_ms: 0
+            }
+        );
         assert_eq!(
             offer(&roll(Some(0)), 0),
             Offer::Forced(0),
@@ -1259,8 +1357,11 @@ mod tests {
         );
         assert_eq!(
             decide_default(&roll(Some(0))),
-            Decision::Wait(Wait::Choice),
-            "a player still clicks their own roll"
+            Decision::Answer {
+                index: 0,
+                after_ms: 0
+            },
+            "recycling is an automatic protocol step for the choosing player too"
         );
         assert_eq!(offer(&roll(None), 0), Offer::Forced(0));
         assert_eq!(decide_default(&roll(None)), Decision::Wait(Wait::NoPass));

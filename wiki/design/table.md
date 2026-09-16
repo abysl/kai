@@ -38,6 +38,13 @@ reveal the face.
 
 ## Forced answers and ordered prompts
 
+Completed recycling prompts have no remaining card choice. When the only
+enabled action is a randomness commitment, `auto::decide` sends it without the
+normal pass delay, for every contributing seat regardless of prompt ownership.
+This protocol step is independent of auto-pass and forced-choice preferences.
+Reveals still use the existing commit/reveal path; the renderer does not pick
+the shuffle order. Opening rolls and unfinished mulligan choices stay manual.
+
 `auto::offer` is the shared classification used by player automation and the
 AI pilot. Requiring every option does not make an ordering prompt forced:
 with multiple trigger choices, return `Offer::Choice`. The order can change
