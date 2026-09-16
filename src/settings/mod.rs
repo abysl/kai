@@ -126,7 +126,6 @@ pub struct NetParams<'w> {
     pub identity: ResMut<'w, identity::IdentityPanel>,
     pub opponent: ResMut<'w, crate::menu::Opponent>,
     pub name: ResMut<'w, crate::os::profile::PlayerName>,
-    #[cfg(not(target_arch = "wasm32"))]
     pub ai: ResMut<'w, crate::ai::seat::AiLobby>,
 }
 

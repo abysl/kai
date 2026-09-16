@@ -583,8 +583,7 @@ pub fn lobby_screen(
     if pressed {
         match action_for(&state) {
             Some(Action::PlayVsAi) => {
-                net::host_table(&mut net.info);
-                net.opponent.pending_ai = true;
+                super::ai_setup::open(menu, &mut net.ai, true);
             }
             Some(Action::HostTable) => net::host_table(&mut net.info),
             Some(Action::Join(host)) => {

@@ -1,3 +1,4 @@
+pub mod ai_setup;
 pub mod browser;
 pub mod deckbox;
 pub mod decks;
@@ -56,6 +57,7 @@ pub enum DeckSeat {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Sheet {
     DeckBox(DeckSeat),
+    AiSetup { start: bool },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -191,7 +193,6 @@ pub struct MenuPlugin;
 
 impl Plugin for MenuPlugin {
     fn build(&self, app: &mut App) {
-        #[cfg(not(target_arch = "wasm32"))]
         app.init_resource::<crate::ai::seat::AiLobby>()
             .add_systems(Update, opponent::start_pending_ai);
         crate::os::profile::register(app);
@@ -457,6 +458,7 @@ fn menu_ui(
                 &context, class, game, &mut menu, &my_seat, &mut table, &mut net, &mut decks,
                 &thumbs,
             );
+            ai_setup::show(&context, class, &mut menu, &mut net, &mut decks);
             crate::deck::exchange::qr_modal(&context, &mut decks.import.qr);
         }
         Screen::Decks => crate::deck::exchange::qr_modal(&context, &mut decks.import.qr),

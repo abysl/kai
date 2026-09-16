@@ -1,7 +1,5 @@
-#[cfg(not(target_arch = "wasm32"))]
 use super::lobby::{legend_id, thumbnail};
 use super::{chip, segmented, Menu, TOUCH};
-#[cfg(not(target_arch = "wasm32"))]
 use super::{DeckSeat, Sheet};
 use crate::deck::thumbs::Thumbs;
 use crate::deck::{history, import, pool};
@@ -32,11 +30,7 @@ impl Segment {
 }
 
 pub fn segments() -> &'static [Segment] {
-    if cfg!(target_arch = "wasm32") {
-        &[Segment::Friends, Segment::Join]
-    } else {
-        &[Segment::Ai, Segment::Friends, Segment::Join]
-    }
+    &[Segment::Ai, Segment::Friends, Segment::Join]
 }
 
 pub fn default_segment() -> Segment {
@@ -165,18 +159,18 @@ pub fn recovery_card(recovery: &Recovery) -> Option<(String, &'static str)> {
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 pub fn ai_alive() -> bool {
     crate::ai::seat::status().is_some_and(|status| status.alive)
 }
 
-#[cfg(target_arch = "wasm32")]
-pub fn ai_alive() -> bool {
-    false
-}
-
-#[cfg(not(target_arch = "wasm32"))]
 pub fn free_brain_deck(seated: &import::SeatedDeck) -> Option<(import::ImportedDeck, String)> {
+    if let Some(record) = seated
+        .0
+        .as_ref()
+        .filter(|record| matches!(record.deck, import::ImportedDeck::Mtg(_)))
+    {
+        return Some((record.deck.clone(), history::label(&record.deck)));
+    }
     let mine = match seated.0.as_ref().map(|record| &record.deck) {
         Some(import::ImportedDeck::Riftbound(deck)) => deck
             .legend
@@ -190,7 +184,6 @@ pub fn free_brain_deck(seated: &import::SeatedDeck) -> Option<(import::ImportedD
     Some((import::ImportedDeck::Riftbound(deck), pick.label))
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 pub fn start_ai(
     opponent: &mut Opponent,
     seated: &import::SeatedDeck,
@@ -201,7 +194,7 @@ pub fn start_ai(
         return "that deck is not available here — pick another for the AI".into();
     }
     let mut label = deck.as_ref().map(history::label);
-    if deck.is_none() && !lobby.kind.is_llm() {
+    if deck.is_none() && (!lobby.kind.is_llm() || cfg!(target_arch = "wasm32")) {
         match free_brain_deck(seated) {
             Some((picked, picked_label)) => {
                 deck = Some(picked);
@@ -212,7 +205,7 @@ pub fn start_ai(
     }
     let battlefield = opponent.ai_battlefield + 1;
     let chosen = deck.as_ref().zip(label.as_deref());
-    match crate::ai::seat::start(chosen, battlefield, lobby.kind, &lobby.model) {
+    match crate::ai::seat::start(chosen, battlefield, lobby) {
         Ok(()) => format!(
             "AI joining with {}…",
             label.unwrap_or_else(|| "a deck of its choosing".into())
@@ -221,7 +214,6 @@ pub fn start_ai(
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 pub fn start_pending_ai(
     mut opponent: ResMut<Opponent>,
     info: Res<crate::table::SessionInfo>,
@@ -274,12 +266,11 @@ pub fn opponent_group(
     ui.add_space(8.0);
     match segment {
         Segment::Ai => ai_segment(ui, game, menu, net, decks, thumbs),
-        Segment::Friends => friends_segment(ui, my_seat, table, net, decks),
+        Segment::Friends => friends_segment(ui, menu, my_seat, table, net, decks),
         Segment::Join => join_segment(ui, net),
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 fn ai_segment(
     ui: &mut egui::Ui,
     game: TableGame,
@@ -312,22 +303,19 @@ fn ai_segment(
         menu.open_sheet(Sheet::DeckBox(DeckSeat::Ai));
     }
     ui.add_space(4.0);
-    ui.horizontal_wrapped(|ui| {
-        ui.label(egui::RichText::new("brain").color(theme::tokens(ui.ctx()).ink_weak));
-        for (label, kind, preset) in crate::ai::seat::BRAIN_PRESETS {
-            if chip(ui, label, net.ai.preset_is(kind, preset)).clicked()
-                && net.ai.pick_preset(kind, preset)
-            {
-                if let Some(status) = crate::ai::seat::status().filter(|status| status.alive) {
-                    net.ai.status = if kind.is_llm() {
-                        crate::ai::seat::switch_live_model(&status, &net.ai.model)
-                    } else {
-                        "the free brain takes over when the AI is next added".into()
-                    };
-                }
-            }
-        }
+    ui.label(if net.ai.configured {
+        format!(
+            "{} · {}",
+            net.ai.credentials.provider.label(),
+            net.ai.brain_label()
+        )
+    } else {
+        "Set up an AI provider, key and model before playing".into()
     });
+    if chip(ui, "AI settings", false).clicked() {
+        super::ai_setup::open(menu, &mut net.ai, false);
+    }
+
     if let Some(status) = crate::ai::seat::status() {
         if status.alive {
             ui.horizontal_wrapped(|ui| {
@@ -352,8 +340,7 @@ fn ai_segment(
         && !net.opponent.pending_ai
         && chip(ui, "add AI to this table", false).clicked()
     {
-        let lobby = net.ai.clone();
-        net.ai.status = start_ai(&mut net.opponent, &decks.seated, &lobby);
+        super::ai_setup::open(menu, &mut net.ai, true);
     }
     if net.opponent.pending_ai {
         ui.label(
@@ -370,23 +357,9 @@ fn ai_segment(
     }
 }
 
-#[cfg(target_arch = "wasm32")]
-fn ai_segment(
-    ui: &mut egui::Ui,
-    _game: TableGame,
-    _menu: &mut Menu,
-    _net: &mut NetParams,
-    _decks: &mut DeckParams,
-    _thumbs: &Thumbs,
-) {
-    ui.label(
-        egui::RichText::new("the AI opponent runs beside a desktop kai")
-            .color(theme::tokens(ui.ctx()).ink_weak),
-    );
-}
-
 fn friends_segment(
     ui: &mut egui::Ui,
+    menu: &mut Menu,
     my_seat: &MySeat,
     table: &mut TableParams,
     net: &mut NetParams,
@@ -480,15 +453,8 @@ fn friends_segment(
                     }
                 }
             }
-            #[cfg(not(target_arch = "wasm32"))]
             if !ai_alive() && !net.opponent.pending_ai && chip(ui, "add AI", false).clicked() {
-                if net.info.role == SessionRole::Host {
-                    let lobby = net.ai.clone();
-                    net.ai.status = start_ai(&mut net.opponent, &decks.seated, &lobby);
-                } else {
-                    net.opponent.pending_ai = true;
-                    net::host_table(&mut net.info);
-                }
+                super::ai_setup::open(menu, &mut net.ai, true);
             }
         });
         if net.info.role == SessionRole::Solo {

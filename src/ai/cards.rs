@@ -45,6 +45,12 @@ pub struct CardTexts {
 }
 
 impl CardTexts {
+    #[cfg(target_arch = "wasm32")]
+    pub fn load(_store_dir: &Path) -> Self {
+        Self::pool()
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn load(store_dir: &Path) -> Self {
         let mut texts = Self::default();
         if let Ok(Some(manifest)) = agni_importers::riftbound::ingest::load_manifest(store_dir) {

@@ -25,7 +25,7 @@ their device renders a different number of frames.
 | Deck editing and persistence | `src/deck/` | Drafts, catalogs, imports, and saved decks |
 | Card layout, gestures, and animation | `src/table/` | Render and interact with the accepted view |
 | Multiplayer and joining | `src/net/` | Route requests and consume session events |
-| Native automated opponents | `src/ai/` | Drive a seat through normal game requests |
+| Automated opponents | `src/ai/` | Drive a separate seat through normal game requests on native and browser builds |
 | Platform services | `src/os/` | Target-specific clipboard, storage, and integration |
 
 `src/lib.rs` is the module entry point, not a place for new application logic.

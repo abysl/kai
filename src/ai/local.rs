@@ -104,6 +104,7 @@ pub struct Config {
     pub name: String,
     pub kind: MindKind,
     pub model: String,
+    pub credentials: super::provider::Credentials,
     pub deck: Option<(ImportedDeck, String)>,
     pub battlefield: Option<usize>,
     pub dir: PathBuf,
@@ -118,6 +119,7 @@ impl Config {
             name: crate::ai::seat::DEFAULT_NAME.into(),
             kind,
             model: model.into(),
+            credentials: super::provider::Credentials::from_env(super::provider::Provider::NanoGpt),
             deck: None,
             battlefield: None,
             dir,
@@ -207,6 +209,9 @@ pub fn status() -> Option<Status> {
 }
 
 pub fn start(config: Config) -> Result<(), String> {
+    if config.kind.is_llm() {
+        config.credentials.validate(&config.model)?;
+    }
     stop_with("replaced by a new seat");
     std::fs::create_dir_all(&config.dir)
         .map_err(|error| format!("{}: {error}", config.dir.display()))?;
@@ -232,6 +237,7 @@ pub fn start(config: Config) -> Result<(), String> {
                 name,
                 kind,
                 model,
+                credentials,
                 deck,
                 battlefield,
                 pace,
@@ -241,7 +247,11 @@ pub fn start(config: Config) -> Result<(), String> {
             } = config;
             let mut out = out;
             let mind = match kind {
-                MindKind::Llm => driver::llm_mind(&model, Some(notes), &mut out),
+                MindKind::Llm => driver::llm_mind_with(
+                    super::nanogpt::Client::configured(model, credentials),
+                    Some(notes),
+                    &mut out,
+                ),
                 MindKind::Random => Mind::Random,
                 MindKind::Auto => Mind::Auto,
             };

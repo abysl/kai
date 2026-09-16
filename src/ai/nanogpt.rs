@@ -1,7 +1,11 @@
+#[cfg(not(target_arch = "wasm32"))]
+use super::provider::http_error;
+use super::provider::{Credentials, Provider};
 use parking_lot::Mutex;
 use serde_json::{json, Value};
 use std::collections::VecDeque;
 use std::sync::Arc;
+#[cfg(not(target_arch = "wasm32"))]
 use std::time::Duration;
 
 pub const DEFAULT_MODEL: &str = "deepseek/deepseek-v4-flash";
@@ -37,8 +41,10 @@ pub struct Reply {
 
 #[derive(Clone)]
 pub struct Client {
+    #[cfg(not(target_arch = "wasm32"))]
     agent: ureq::Agent,
     key: String,
+    provider: Provider,
     pub model: String,
     canned: Option<Arc<Mutex<VecDeque<Reply>>>>,
 }
@@ -47,11 +53,17 @@ pub const CANNED_EXHAUSTED: &str = "the canned client has no more replies";
 
 impl Client {
     pub fn new(model: impl Into<String>) -> Self {
+        Self::configured(model, Credentials::from_env(Provider::NanoGpt))
+    }
+
+    pub fn configured(model: impl Into<String>, credentials: Credentials) -> Self {
         Self {
+            #[cfg(not(target_arch = "wasm32"))]
             agent: ureq::AgentBuilder::new()
                 .timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS))
                 .build(),
-            key: api_key(),
+            key: credentials.key.0.trim().into(),
+            provider: credentials.provider,
             model: model.into(),
             canned: None,
         }
@@ -75,6 +87,7 @@ impl Client {
             .unwrap_or(0)
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn chat(
         &self,
         messages: &[Value],
@@ -88,7 +101,7 @@ impl Client {
                 .ok_or_else(|| CANNED_EXHAUSTED.to_string());
         }
         if self.key.trim().is_empty() {
-            return Err(MISSING_KEY.to_string());
+            return Err(self.missing_key());
         }
         let body = json!({
             "model": self.model,
@@ -110,29 +123,77 @@ impl Client {
         }
     }
 
+    fn missing_key(&self) -> String {
+        format!(
+            "Enter your {} API key in AI settings (or set {})",
+            self.provider.label(),
+            self.provider.key_env()
+        )
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub async fn chat_async(
+        &self,
+        messages: &[Value],
+        tools: &[Value],
+        require_tool: bool,
+    ) -> Result<Reply, String> {
+        if let Some(replies) = &self.canned {
+            return replies
+                .lock()
+                .pop_front()
+                .ok_or_else(|| CANNED_EXHAUSTED.into());
+        }
+        if self.key.trim().is_empty() {
+            return Err(self.missing_key());
+        }
+        let body = json!({ "model": self.model, "messages": messages, "tools": tools,
+            "tool_choice": if require_tool { "required" } else { "auto" } })
+        .to_string();
+        let value = super::web_http::request(
+            self.provider,
+            self.provider.endpoint(),
+            Some(&self.key),
+            Some(&body),
+            240_000,
+        )
+        .await?;
+        checked_reply(&value)
+    }
+
+    #[cfg(all(test, not(target_arch = "wasm32")))]
+    pub async fn chat_async(
+        &self,
+        messages: &[Value],
+        tools: &[Value],
+        require_tool: bool,
+    ) -> Result<Reply, String> {
+        assert!(
+            self.is_canned(),
+            "async native tests must not make paid requests"
+        );
+        self.chat(messages, tools, require_tool)
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
     fn send(&self, body: &str) -> Result<Reply, String> {
         let response = self
             .agent
-            .post(ENDPOINT)
+            .post(self.provider.endpoint())
             .set("Authorization", &format!("Bearer {}", self.key))
             .set("Content-Type", "application/json")
             .send_string(body)
             .map_err(|error| match error {
-                ureq::Error::Status(code, response) => format!(
-                    "nanogpt {code}: {}",
-                    response
-                        .into_string()
-                        .unwrap_or_default()
-                        .chars()
-                        .take(300)
-                        .collect::<String>()
+                ureq::Error::Status(code, _) => http_error(self.provider, code),
+                _ => format!(
+                    "{}: Network Error or request timed out",
+                    self.provider.label()
                 ),
-                other => format!("nanogpt: {other}"),
             })?;
         let value: Value = response
             .into_json()
-            .map_err(|error| format!("nanogpt reply: {error}"))?;
-        Ok(parse_reply(&value))
+            .map_err(|_| format!("{} returned invalid JSON", self.provider.label()))?;
+        checked_reply(&value)
     }
 }
 
@@ -144,7 +205,20 @@ pub fn retryable(error: &str) -> bool {
     error.contains("timed out")
         || error.contains("nanogpt 429")
         || error.contains("nanogpt 5")
+        || error.contains("NanoGPT 429")
+        || error.contains("NanoGPT 5")
+        || error.contains("OpenRouter 429")
+        || error.contains("OpenRouter 5")
         || error.contains("Network Error")
+}
+
+pub fn checked_reply(value: &Value) -> Result<Reply, String> {
+    if !value["choices"][0]["message"].is_object() || value.get("error").is_some() {
+        return Err(
+            "The provider returned no assistant response; check model access and credit".into(),
+        );
+    }
+    Ok(parse_reply(value))
 }
 
 pub fn parse_reply(value: &Value) -> Reply {
@@ -315,6 +389,9 @@ mod tests {
     fn missing_credentials_fail_before_sending_a_request() {
         let mut client = Client::new(DEFAULT_MODEL);
         client.key.clear();
-        assert_eq!(client.chat(&[], &[], false).unwrap_err(), MISSING_KEY);
+        assert_eq!(
+            client.chat(&[], &[], false).unwrap_err(),
+            client.missing_key()
+        );
     }
 }

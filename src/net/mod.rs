@@ -277,7 +277,6 @@ pub fn rules_enforced(info: &SessionInfo, choice: &TableChoice) -> bool {
 }
 
 fn send_to(conn: u64, msg: HostMsg) {
-    #[cfg(not(target_arch = "wasm32"))]
     let Some(msg) = crate::ai::local::deliver(conn, msg) else {
         return;
     };
@@ -842,7 +841,6 @@ pub fn drain_net(
     }
     #[allow(unused_mut)]
     let mut events: Vec<NetToGame> = bridge::drain_events();
-    #[cfg(not(target_arch = "wasm32"))]
     events.extend(crate::ai::local::events());
     for event in events {
         match event {
@@ -954,12 +952,10 @@ pub fn drain_net(
                 info.status = format!("hosting failed: {error}");
             }
             NetToGame::HostClosed => {
-                #[cfg(not(target_arch = "wasm32"))]
                 crate::ai::local::end("the table closed");
                 host_closed(&mut info, &mut host);
             }
             NetToGame::HostLost { reason } => {
-                #[cfg(not(target_arch = "wasm32"))]
                 crate::ai::local::end(&reason);
                 host.conns.clear();
                 host.conn_nodes.clear();
@@ -1924,7 +1920,6 @@ pub(crate) fn leave_session(
     if host.session.is_some() {
         close_table();
     }
-    #[cfg(not(target_arch = "wasm32"))]
     crate::ai::local::end("you left the table");
     host.clear();
     client.session = None;

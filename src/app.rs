@@ -60,6 +60,7 @@ pub fn parse_shot_frame(spec: Option<&str>) -> u32 {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Open {
+    AiSettings,
     DeckBox,
     Decks,
     DeckEditor(EditorSeed),
@@ -75,6 +76,9 @@ pub enum EditorSeed {
 pub fn parse_open(spec: &str) -> Option<Open> {
     let mut parts = spec.trim().splitn(3, ':');
     let what = parts.next()?;
+    if what == "ai-settings" {
+        return parts.next().is_none().then_some(Open::AiSettings);
+    }
     if what == "deck-box" {
         return parts.next().is_none().then_some(Open::DeckBox);
     }
@@ -228,11 +232,17 @@ fn open_on_request(
     mut menu: ResMut<crate::menu::Menu>,
     mut choice: ResMut<crate::net::TableChoice>,
     mut editor: ResMut<crate::deck::editor::DeckEditor>,
+    mut ai: ResMut<crate::ai::seat::AiLobby>,
 ) {
     if frames.0 < OPEN_FRAME {
         return;
     }
     let seed = match harness.open.take() {
+        Some(Open::AiSettings) => {
+            menu.open_lobby(crate::net::TableGame::FreeForm);
+            crate::menu::ai_setup::open(&mut menu, &mut ai, true);
+            return;
+        }
         Some(Open::DeckEditor(seed)) => seed,
         Some(Open::DeckBox) => {
             choice.game = crate::net::TableGame::Riftbound;
@@ -440,6 +450,8 @@ mod tests {
         assert_eq!(parse_open("deck-box:ai"), None);
         assert_eq!(parse_open("decks"), Some(Open::Decks));
         assert_eq!(parse_open("decks:x"), None);
+        assert_eq!(parse_open("ai-settings"), Some(Open::AiSettings));
+        assert_eq!(parse_open("ai-settings:key"), None);
         assert_eq!(parse_shot_frame(None), STARTUP_SHOT_FRAME);
         assert_eq!(parse_shot_frame(Some(" 90 ")), 90);
         assert_eq!(parse_shot_frame(Some("0")), STARTUP_SHOT_FRAME);

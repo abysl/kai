@@ -6,6 +6,9 @@ use std::path::{Path, PathBuf};
 pub const DEFAULT_NAME: &str = "bot";
 
 pub fn dir() -> PathBuf {
+    #[cfg(target_arch = "wasm32")]
+    return PathBuf::new();
+    #[cfg(not(target_arch = "wasm32"))]
     crate::os::paths::config_dir().join("ai")
 }
 
@@ -14,6 +17,9 @@ pub fn chat_path() -> PathBuf {
 }
 
 pub fn say(text: &str) {
+    #[cfg(target_arch = "wasm32")]
+    local::say(text);
+    #[cfg(not(target_arch = "wasm32"))]
     say_at(&chat_path(), text);
 }
 
@@ -25,6 +31,9 @@ pub const FREE_BRAIN_DEAF: &str =
     "the free brain does not read chat — a model takes over when the AI is next added";
 
 pub fn switch_model(model: &str) {
+    #[cfg(target_arch = "wasm32")]
+    local::switch_model(model);
+    #[cfg(not(target_arch = "wasm32"))]
     switch_model_at(&chat_path(), model);
 }
 
@@ -56,6 +65,9 @@ fn append_chat(path: &Path, line: &str) {
 }
 
 pub fn chat_lines() -> Vec<String> {
+    #[cfg(target_arch = "wasm32")]
+    return local::chat_lines();
+    #[cfg(not(target_arch = "wasm32"))]
     chat_lines_at(&chat_path())
 }
 
@@ -66,6 +78,9 @@ pub fn chat_lines_at(path: &Path) -> Vec<String> {
 }
 
 pub fn clear_chat() {
+    #[cfg(target_arch = "wasm32")]
+    local::clear_chat();
+    #[cfg(not(target_arch = "wasm32"))]
     let _ = std::fs::remove_file(chat_path());
 }
 
@@ -75,6 +90,9 @@ pub struct AiLobby {
     pub model: String,
     pub status: String,
     pub draft: String,
+    pub credentials: super::provider::Credentials,
+    pub configured: bool,
+    pub setup: super::setup::Setup,
 }
 
 impl Default for AiLobby {
@@ -84,6 +102,9 @@ impl Default for AiLobby {
             model: super::nanogpt::DEFAULT_MODEL.to_string(),
             status: String::new(),
             draft: String::new(),
+            credentials: super::provider::Credentials::from_env(super::provider::Provider::NanoGpt),
+            configured: false,
+            setup: super::setup::Setup::default(),
         }
     }
 }
@@ -132,10 +153,10 @@ pub fn stop() {
 pub fn start(
     deck: Option<(&ImportedDeck, &str)>,
     battlefield: usize,
-    kind: MindKind,
-    model: &str,
+    lobby: &AiLobby,
 ) -> Result<(), String> {
-    let mut config = Config::new(dir(), kind, model);
+    let mut config = Config::new(dir(), lobby.kind, &lobby.model);
+    config.credentials = lobby.credentials.clone();
     if let Some((deck, label)) = deck {
         config = config.with_deck(deck.clone(), label, battlefield.saturating_sub(1));
     }

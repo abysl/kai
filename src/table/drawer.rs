@@ -372,14 +372,12 @@ pub fn log_line(
     tapped
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 pub const PRESETS: [(&str, &str); 3] = [
     ("fast", crate::ai::nanogpt::DEFAULT_MODEL),
     ("fastest", crate::ai::nanogpt::FASTEST_MODEL),
     ("thinking", crate::ai::nanogpt::THINKING_MODEL),
 ];
 
-#[cfg(not(target_arch = "wasm32"))]
 pub fn preset_row(ui: &mut egui::Ui, model: &mut String) -> bool {
     let mut switched = false;
     ui.horizontal_wrapped(|ui| {
@@ -398,14 +396,15 @@ pub fn preset_row(ui: &mut egui::Ui, model: &mut String) -> bool {
     switched
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 pub fn model_controls(ui: &mut egui::Ui, lobby: &mut crate::ai::seat::AiLobby) {
     use crate::ai::seat;
     ui.horizontal(|ui| {
         ui.label("model");
         ui.add(egui::TextEdit::singleline(&mut lobby.model).desired_width(220.0));
     });
-    if preset_row(ui, &mut lobby.model) {
+    if lobby.credentials.provider == crate::ai::provider::Provider::NanoGpt
+        && preset_row(ui, &mut lobby.model)
+    {
         lobby.kind = crate::ai::driver::MindKind::Llm;
         if let Some(status) = seat::status().filter(|status| status.alive) {
             lobby.status = seat::switch_live_model(&status, &lobby.model);
@@ -423,7 +422,6 @@ pub fn model_controls(ui: &mut egui::Ui, lobby: &mut crate::ai::seat::AiLobby) {
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 pub fn chat_line(ui: &mut egui::Ui, line: &str) {
     if let Some(text) = line.strip_prefix("you: ") {
         ui.label(
@@ -442,7 +440,6 @@ pub fn chat_line(ui: &mut egui::Ui, line: &str) {
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 pub fn chat_tab(ui: &mut egui::Ui, lobby: &mut crate::ai::seat::AiLobby) {
     use crate::ai::seat;
     let status = seat::status();
@@ -503,7 +500,8 @@ pub fn chat_tab(ui: &mut egui::Ui, lobby: &mut crate::ai::seat::AiLobby) {
     });
     ui.horizontal_wrapped(|ui| {
         ui.label(egui::RichText::new("switch model").weak());
-        switch = preset_row(ui, &mut lobby.model);
+        switch = lobby.credentials.provider == crate::ai::provider::Provider::NanoGpt
+            && preset_row(ui, &mut lobby.model);
         if status.as_ref().is_some_and(|status| status.alive)
             && ui.small_button("stop AI").clicked()
         {
@@ -535,14 +533,6 @@ pub fn chat_tab(ui: &mut egui::Ui, lobby: &mut crate::ai::seat::AiLobby) {
     }
 }
 
-#[cfg(target_arch = "wasm32")]
-pub fn chat_tab(ui: &mut egui::Ui) {
-    ui.label(
-        egui::RichText::new("the AI player runs in the desktop and Android builds")
-            .color(hud::INK_WEAK),
-    );
-}
-
 #[allow(clippy::too_many_arguments)]
 pub(super) fn drawer_ui(
     mut contexts: EguiContexts,
@@ -558,7 +548,7 @@ pub(super) fn drawer_ui(
     mut drawer: ResMut<Drawer>,
     mut panel: ResMut<DrawerPanel>,
     mut selected: ResMut<Selected>,
-    #[cfg(not(target_arch = "wasm32"))] mut lobby: ResMut<crate::ai::seat::AiLobby>,
+    mut lobby: ResMut<crate::ai::seat::AiLobby>,
     cards: Query<(Entity, &CardView)>,
 ) -> Result {
     if !menu.at_table() || !is_open(&drawer) {
@@ -601,10 +591,7 @@ pub(super) fn drawer_ui(
                     });
             }
             Tab::Chat => {
-                #[cfg(not(target_arch = "wasm32"))]
                 chat_tab(ui, &mut lobby);
-                #[cfg(target_arch = "wasm32")]
-                chat_tab(ui);
             }
             Tab::Tokens => {
                 egui::ScrollArea::vertical()

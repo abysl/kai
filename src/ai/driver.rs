@@ -1,5 +1,9 @@
-use crate::ai::brain::{Brain, Situation, DECISION_OVER};
-use crate::ai::hold::{Dropped, Pilot, Step};
+use crate::ai::brain::Brain;
+#[cfg(not(target_arch = "wasm32"))]
+use crate::ai::brain::{Situation, DECISION_OVER};
+#[cfg(not(target_arch = "wasm32"))]
+use crate::ai::hold::Step;
+use crate::ai::hold::{Dropped, Pilot};
 use crate::ai::random::{self, Choice, Rng};
 use crate::deck::import::{deal_plan_for, face_map, ImportedDeck, SeatedDeckRecord};
 use crate::engine::modules::{prepare_join, JoinModules};
@@ -26,7 +30,7 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use web_time::{Duration, Instant};
 
 pub const TICK: Duration = Duration::from_millis(100);
 pub const SETTLE_TICKS: usize = 12;
@@ -546,6 +550,16 @@ pub fn arrow_line(
     format!("arrow: {} {from} → {to}", arrow_kind_word(arrow.kind))
 }
 
+#[cfg(target_arch = "wasm32")]
+pub fn saved_deck(source: &str) -> Option<ImportedDeck> {
+    let rows = crate::deck::history::store::rows(agni_riftbound::GAME);
+    let row = rows
+        .iter()
+        .find(|row| row.label.eq_ignore_ascii_case(source.trim()))?;
+    crate::deck::history::store::recall(agni_riftbound::GAME, row.ci)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 pub fn saved_deck(source: &str) -> Option<ImportedDeck> {
     if source.starts_with("http://")
         || source.starts_with("https://")
@@ -580,6 +594,7 @@ pub fn finish_join(seat: &mut Seat, out: &mut Out) {
         JoinModules::Refused { error } => {
             seat.pending = None;
             seat.module_status = None;
+            seat.ended = Some(format!("join refused: {error}"));
             out.line(format!("join refused: {error}"));
         }
         JoinModules::Ready {
@@ -591,6 +606,7 @@ pub fn finish_join(seat: &mut Seat, out: &mut Out) {
             seat.module_status = None;
             let engine_pin = engine.engine_hash().map(engine_blob_ref);
             if let Err(error) = verify_engine_pin(pending.log(), engine_pin.as_deref()) {
+                seat.ended = Some(format!("engine pin: {error}"));
                 out.line(format!("engine pin: {error}"));
                 return;
             }
@@ -599,6 +615,7 @@ pub fn finish_join(seat: &mut Seat, out: &mut Out) {
                 .and_then(|plugin| plugin.module_hash())
                 .map(engine_blob_ref);
             if let Err(error) = verify_plugin_pin(pending.log(), plugin_pin.as_deref()) {
+                seat.ended = Some(format!("plugin pin: {error}"));
                 out.line(format!("plugin pin: {error}"));
                 return;
             }
@@ -769,6 +786,12 @@ pub fn seat_deck(seat: &mut Seat, deck: ImportedDeck, battlefield: Option<usize>
     seat.dealt = false;
 }
 
+#[cfg(target_arch = "wasm32")]
+pub fn load_deck(_seat: &mut Seat, _path: &str, out: &mut Out) {
+    out.line("Choose or import the AI deck in the lobby before starting browser play");
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 pub fn load_deck(seat: &mut Seat, path: &str, out: &mut Out) {
     use agni_importers::riftbound::query::DeckQuery;
     if path.ends_with(".snapshot.json") {
@@ -1260,17 +1283,23 @@ pub fn run_command(seat: &mut Seat, link: &mut dyn Link, line: &str, out: &mut O
             );
         }
         "decks" => {
+            #[cfg(not(target_arch = "wasm32"))]
             let rows = catalog_dir()
                 .map(|dir| crate::deck::history::store::rows_in(&dir, agni_riftbound::GAME))
                 .unwrap_or_default();
+            #[cfg(target_arch = "wasm32")]
+            let rows = crate::deck::history::store::rows(agni_riftbound::GAME);
             if rows.is_empty() {
                 out.line("no saved decks in the catalogue store");
             }
             for row in rows {
-                let cards = catalog_dir()
-                    .and_then(|dir| {
-                        crate::deck::history::store::recall_in(&dir, agni_riftbound::GAME, row.ci)
-                    })
+                #[cfg(not(target_arch = "wasm32"))]
+                let deck = catalog_dir().and_then(|dir| {
+                    crate::deck::history::store::recall_in(&dir, agni_riftbound::GAME, row.ci)
+                });
+                #[cfg(target_arch = "wasm32")]
+                let deck = crate::deck::history::store::recall(agni_riftbound::GAME, row.ci);
+                let cards = deck
                     .map(|deck| {
                         deck.cards()
                             .iter()
@@ -1533,6 +1562,15 @@ impl Mind {
 }
 
 pub fn llm_mind(model: &str, notes: Option<PathBuf>, out: &mut Out) -> Mind {
+    llm_mind_with(crate::ai::nanogpt::Client::new(model), notes, out)
+}
+
+pub fn llm_mind_with(
+    client: crate::ai::nanogpt::Client,
+    notes: Option<PathBuf>,
+    out: &mut Out,
+) -> Mind {
+    let model = &client.model;
     let mut cards = catalog_dir()
         .as_deref()
         .map(crate::ai::cards::CardTexts::load)
@@ -1543,11 +1581,7 @@ pub fn llm_mind(model: &str, notes: Option<PathBuf>, out: &mut Out) -> Mind {
         "ai mode: {model}, {from_store} card texts from the store, {} with the pool",
         cards.len()
     ));
-    Mind::Llm(Box::new(Brain::new(
-        crate::ai::nanogpt::Client::new(model),
-        cards,
-        notes,
-    )))
+    Mind::Llm(Box::new(Brain::new(client, cards, notes)))
 }
 
 struct Sent {
@@ -1764,6 +1798,12 @@ impl Driver {
         (!answered && sent.at.elapsed() < FOLD_WAIT) || sent.at.elapsed() < self.pace
     }
 
+    #[cfg(target_arch = "wasm32")]
+    fn steer(&mut self, _link: &mut dyn Link, _brain: &mut Brain) {
+        self.seat.ended = Some("Browser model play requires the asynchronous seat runner".into());
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
     fn steer(&mut self, link: &mut dyn Link, brain: &mut Brain) {
         let fresh = self.chat.poll(brain, &mut self.out);
         let in_game =
@@ -1866,6 +1906,7 @@ impl Driver {
 }
 
 #[allow(clippy::too_many_arguments)]
+#[cfg(not(target_arch = "wasm32"))]
 pub fn think(
     brain: &mut Brain,
     seat: &mut Seat,

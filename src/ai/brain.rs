@@ -324,6 +324,7 @@ impl Brain {
         &self.notes
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn decide(
         &mut self,
         situation: &Situation,
@@ -333,6 +334,7 @@ impl Brain {
         self.decide_until(situation, exec, log, &|| false)
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn decide_until(
         &mut self,
         situation: &Situation,
@@ -428,6 +430,100 @@ impl Brain {
         }
         self.recap = Some(recap);
         outcome
+    }
+
+    #[cfg(any(test, target_arch = "wasm32"))]
+    pub async fn decide_async(
+        &mut self,
+        situation: &Situation,
+        conn: u64,
+        epoch: u64,
+    ) -> Result<(), String> {
+        use super::web_local::{decision_current, execute};
+        let tools = tools_for(situation);
+        let mut messages = self.request(situation);
+        self.hold = None;
+        let mut outcome = Outcome {
+            commands: Vec::new(),
+            notes_changed: false,
+            prompt_tokens: 0,
+            cached_tokens: 0,
+            completion_tokens: 0,
+            last_words: String::new(),
+        };
+        let mut recap = Recap::default();
+        let mut latest_state: Option<usize> = None;
+        for round in 0..MAX_ROUNDS {
+            if !decision_current(conn, epoch) {
+                return Err(HALTED.into());
+            }
+            let reply = self
+                .client
+                .chat_async(&messages, &tools, round == 0)
+                .await?;
+            if !decision_current(conn, epoch) {
+                return Err(HALTED.into());
+            }
+            messages.push(assistant_message(&reply));
+            if reply.tool_calls.is_empty() {
+                break;
+            }
+            let mut finished = false;
+            for call in &reply.tool_calls {
+                if !decision_current(conn, epoch) {
+                    return Err(HALTED.into());
+                }
+                let args: Value = serde_json::from_str(&call.arguments).unwrap_or(Value::Null);
+                let command = if call.name == "reply" {
+                    args["text"]
+                        .as_str()
+                        .filter(|text| !text.trim().is_empty())
+                        .map(|text| format!("say {text}"))
+                } else {
+                    command_of(&call.name, &args)
+                };
+                let raw = match command {
+                    Some(command) => execute(conn, epoch, &command).await,
+                    None => String::new(),
+                };
+                if !decision_current(conn, epoch) {
+                    return Err(HALTED.into());
+                }
+                let result = self.run_call(
+                    call,
+                    &mut outcome,
+                    &mut recap,
+                    &mut |_| raw.clone(),
+                    &mut |_| {},
+                );
+                finished |= call.name == "done"
+                    || (call.name == "hold" && self.hold.is_some())
+                    || result.over;
+                if result.state {
+                    match latest_state.replace(messages.len()) {
+                        Some(earlier) => {
+                            messages[earlier]["content"] = Value::String(superseded(
+                                messages[earlier]["content"].as_str().unwrap_or_default(),
+                            ))
+                        }
+                        None => {
+                            messages[1]["content"] = Value::String(superseded_opening(
+                                messages[1]["content"].as_str().unwrap_or_default(),
+                            ))
+                        }
+                    }
+                }
+                messages.push(tool_result(call, &result.text));
+                if finished {
+                    break;
+                }
+            }
+            if finished {
+                break;
+            }
+        }
+        self.recap = Some(recap);
+        Ok(())
     }
 
     fn run_call(

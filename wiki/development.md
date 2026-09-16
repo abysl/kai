@@ -93,6 +93,14 @@ native build dependencies. For transport changes, also use the
 [connectivity harness](../tests/connectivity/README.md). A skipped connectivity
 case is not a passing test.
 
+AI setup changes additionally need `cargo check --locked --target
+wasm32-unknown-unknown --lib`, `cargo test --locked --lib ai::`, and
+`cargo test --locked --lib menu::ai_setup`. The AI integration tests require
+the built Riftbound plugin at `assets/plugins/riftbound.wasm`, or its path in
+`AGNI_RIFTBOUND_WASM`. The live, paid-model test remains ignored by default.
+Use `KAI_OPEN=ai-settings` with the screenshot harness to open the credential
+sheet without creating a table. Never capture a real API key.
+
 ## Formatting
 
 treefmt runs the configured language formatters for this repository. With Nix
