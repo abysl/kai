@@ -17,6 +17,7 @@ pub enum Segment {
     Ai,
     Friends,
     Join,
+    Match,
 }
 
 impl Segment {
@@ -25,12 +26,13 @@ impl Segment {
             Segment::Ai => "AI",
             Segment::Friends => "friends",
             Segment::Join => "join",
+            Segment::Match => "find game",
         }
     }
 }
 
 pub fn segments() -> &'static [Segment] {
-    &[Segment::Ai, Segment::Friends, Segment::Join]
+    &[Segment::Ai, Segment::Friends, Segment::Join, Segment::Match]
 }
 
 pub fn default_segment() -> Segment {
@@ -258,9 +260,11 @@ pub fn opponent_group(
         .map(|segment| (*segment, segment.label()))
         .collect();
     let mut segment = net.opponent.segment();
-    if segmented(ui, &mut segment, &options) {
-        net.opponent.segment = Some(segment);
-    }
+    ui.add_enabled_ui(!net.matchmaking.active(), |ui| {
+        if segmented(ui, &mut segment, &options) {
+            net.opponent.segment = Some(segment);
+        }
+    });
     ui.add_space(4.0);
     crate::os::profile::name_field(ui, &mut net.name, 180.0);
     ui.add_space(8.0);
@@ -268,6 +272,26 @@ pub fn opponent_group(
         Segment::Ai => ai_segment(ui, game, menu, net, decks, thumbs),
         Segment::Friends => friends_segment(ui, menu, my_seat, table, net, decks),
         Segment::Join => join_segment(ui, net),
+        Segment::Match => {
+            ui.label(
+                "Find one other player searching with the same game, rules and table settings.",
+            );
+            ui.label(if game == TableGame::FreeForm {
+                "Keep this screen open while searching. You can add cards once you meet your opponent."
+            } else {
+                "Choose your deck before searching. Keep this screen open; your deck list is not advertised."
+            });
+            if !net.matchmaking.status.is_empty() {
+                ui.add_space(8.0);
+                ui.label(&net.matchmaking.status);
+                if net.matchmaking.active() {
+                    ui.spinner();
+                }
+            }
+            if let Some(warning) = net::hosting_warning() {
+                ui.small(warning);
+            }
+        }
     }
 }
 
@@ -658,7 +682,7 @@ mod tests {
             "the first battlefield of its deck"
         );
         assert!(opponent.join_target().is_none());
-        assert_eq!(segments().len(), 3);
+        assert_eq!(segments().len(), 4);
     }
 
     #[test]

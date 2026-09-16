@@ -13,6 +13,7 @@ they do not yet have identical capabilities or a finished installation experienc
 - Use a game plugin to validate actions and guide play.
 - Build, import, save, and share Riftbound decks.
 - Host a table or join another player using an invitation.
+- Find an opponent searching for a two-player table with the same settings.
 - Undo table actions with the other players' agreement.
 - Add an AI opponent on desktop, Android, or in your browser, using your own
   OpenRouter/NanoGPT key or a keyless random player.

@@ -13,6 +13,7 @@ pub struct Node {
     pub ticket: String,
     pub mesh: Arc<Mesh>,
     pub table: TableProtocol,
+    pub matchmaking: agni_net::matchmaking::Matchmaker,
     pub endpoint: Endpoint,
     #[cfg(not(target_arch = "wasm32"))]
     runtime: tokio::runtime::Handle,
@@ -88,8 +89,11 @@ fn run(dir: std::path::PathBuf) {
     runtime.block_on(async move {
         let table = TableProtocol::new();
         let accepted = table.clone();
+        let matchmaking = agni_net::matchmaking::Matchmaker::default();
+        let matches = matchmaking.clone();
         match spirit_node::serve_with(&dir, move |router| {
             router.accept(agni_net::table::ALPN, accepted)
+                .accept(agni_net::matchmaking::ALPN, matches)
         })
         .await
         {
@@ -99,6 +103,7 @@ fn run(dir: std::path::PathBuf) {
                     ticket: serving.ticket.clone(),
                     mesh: serving.mesh.clone(),
                     table,
+                    matchmaking,
                     endpoint: serving.endpoint.clone(),
                     runtime: tokio::runtime::Handle::current(),
                     blobs: serving.blobs.clone(),
@@ -213,8 +218,12 @@ pub fn start() {
             .collect();
         let table = TableProtocol::new();
         let accepted = table.clone();
+        let matchmaking = agni_net::matchmaking::Matchmaker::default();
+        let matches = matchmaking.clone();
         match spirit_node::serve_in_memory_with(secret, &seeds, move |router| {
-            router.accept(agni_net::table::ALPN, accepted)
+            router
+                .accept(agni_net::table::ALPN, accepted)
+                .accept(agni_net::matchmaking::ALPN, matches)
         })
         .await
         {
@@ -224,6 +233,7 @@ pub fn start() {
                     ticket: serving.ticket.clone(),
                     mesh: serving.mesh.clone(),
                     table,
+                    matchmaking,
                     endpoint: serving.endpoint.clone(),
                     blobs: serving.blobs.clone(),
                 };

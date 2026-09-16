@@ -74,6 +74,25 @@ tabs; closing or reloading the tab stops its AI player and discards its key.
 
 ## Play with another person
 
+To find an opponent, open a game's lobby, choose your deck and rules, select
+**find game** under opponent, then press **find game**. Kai pairs you with one
+other searching player whose game, rules and table settings match. Both players
+enter the table automatically. This is always a two-player match, including
+when you use custom point or battlefield settings.
+
+Keep the lobby open and the browser tab visible while searching. **Cancel
+search**, Back, or leaving the lobby withdraws your search. Cancel before
+changing your deck or settings. If a connection fails, Kai searches again.
+The search has no ranking, region or skill filter and may take time when few
+people are online. Both players need a compatible application build and the
+same game modules; update both apps if you cannot find each other.
+
+Searching announces your endpoint identity and a settings fingerprint to the
+peer network, not your deck list. A fingerprint is not encryption: common
+settings can be inferred. Matchmaking connects you to another player, who may
+be a stranger; it is not an account or reputation check.
+
+For an invitation-only game, select **friends** instead.
 One person hosts; the other joins with the host's invitation. A nearby or
 known table may also appear in the join list. An invitation provides connection
 information: share it only with the people you want at your table.

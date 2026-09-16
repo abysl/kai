@@ -5,6 +5,27 @@ Read [Kai architecture](../architecture.md) first.
 
 ## Layers
 
+The opt-in two-player queue lives in `src/net/matchmaking.rs`. It publishes a
+versioned Agni matchmaking ticket through Spirit's existing table gossip and
+uses Agni's authenticated reservation protocol. Ordinary invitations do not
+use the queue. See [Agni's protocol design](https://github.com/abysl/agni/blob/main/wiki/design/matchmaking.md).
+
+The fingerprint includes game, two-player count, wire version, full table
+configuration, and actual engine/plugin pins. Riftbound's omitted defaults and
+explicit defaults normalize to the same settings; unknown options remain part
+of the digest. Decks and player names are excluded. Queue settings are fixed
+until cancellation. Auto-dealing waits for the match to complete, and the
+chosen deck is retained when a waiting host becomes the guest.
+
+The joining peer waits for `HostClosed` before requesting its reserved host,
+so the old table's close event cannot reset the new client session. A welcome
+must match the expected configuration and have two seats before it is accepted.
+Cancellation invalidates the network attempt generation and pending welcome.
+Leaving the lobby cancels the queue; a completed match uses ordinary table
+controls and keeps its admission restriction for reconnects.
+
+Use `KAI_OPEN=matchmaking` for an empty free-form lobby in screenshot checks.
+
 Kai owns the interface and routes intents. Agni owns host/client sessions,
 the ordered game log, and versioned messages. Spirit supplies the shared
 network endpoint and content exchange. Change a session rule in Agni rather

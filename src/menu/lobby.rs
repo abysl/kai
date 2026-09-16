@@ -111,13 +111,14 @@ pub fn primary_verb(state: &LobbyState) -> Verb {
         Segment::Ai => "play vs AI",
         Segment::Friends => "host table",
         Segment::Join => "join",
+        Segment::Match => "find game",
     };
     match state.deck {
         DeckState::Missing => return Verb::off(verb, "choose a deck first"),
         DeckState::NotNeeded | DeckState::Ready => {}
     }
     match state.segment {
-        Segment::Ai | Segment::Friends => match &state.host_block {
+        Segment::Ai | Segment::Friends | Segment::Match => match &state.host_block {
             Some(reason) => Verb::off(verb, reason),
             None => Verb::on(verb),
         },
@@ -169,6 +170,7 @@ pub fn table_line(options: &agni_riftbound::TableOptions, enforced: bool) -> Str
 pub enum Action {
     PlayVsAi,
     HostTable,
+    FindGame,
     Join(String),
     GoToTable,
 }
@@ -182,6 +184,7 @@ pub fn action_for(state: &LobbyState) -> Option<Action> {
         _ => match state.segment {
             Segment::Ai => Action::PlayVsAi,
             Segment::Friends => Action::HostTable,
+            Segment::Match => Action::FindGame,
             Segment::Join => Action::Join(state.join_target.as_ref()?.host.clone()),
         },
     })
@@ -370,7 +373,11 @@ pub fn rules_group(
     if fixed {
         let players = net.info.roster.len();
         let enforced = net::rules_enforced(&net.info, &net.choice);
-        ui.label(table_line(&net.info.options_in_play(players), enforced));
+        if game == TableGame::Riftbound {
+            ui.label(table_line(&net.info.options_in_play(players), enforced));
+        } else {
+            ui.label(format!("{} · free table", game.label()));
+        }
         ui.label(
             egui::RichText::new("table options are fixed while the table is open")
                 .color(theme::tokens(ui.ctx()).ink_weak)
@@ -498,7 +505,12 @@ pub fn lobby_screen(
         join_target: net.opponent.join_target(),
         host_block: net::host_block(&net.choice),
     };
-    let verb = primary_verb(&state);
+    let searching = net.matchmaking.active();
+    let verb = if searching {
+        Verb::on("cancel search")
+    } else {
+        primary_verb(&state)
+    };
     let mut pressed = false;
     ui.horizontal(|ui| {
         if back_button(ui) {
@@ -581,11 +593,21 @@ pub fn lobby_screen(
         pressed = primary_button(ui, &verb, ui.available_width());
     }
     if pressed {
+        if searching {
+            net.matchmaking
+                .cancel(&mut net.info, &mut net.host, &mut net.client);
+            return;
+        }
         match action_for(&state) {
             Some(Action::PlayVsAi) => {
                 super::ai_setup::open(menu, &mut net.ai, true);
             }
             Some(Action::HostTable) => net::host_table(&mut net.info),
+            Some(Action::FindGame) => {
+                decks.pinned.side = None;
+                decks.pinned.seating = None;
+                net.matchmaking.start(&mut net.info, &net.choice);
+            }
             Some(Action::Join(host)) => {
                 net.info.status = "joining…".into();
                 net::join_table(host);
@@ -609,8 +631,14 @@ fn section_ui(
     thumbs: &Thumbs,
 ) {
     match section {
-        Section::Deck => deck_card(ui, menu, decks, thumbs),
-        Section::Rules { locked, fixed } => rules_group(ui, game, locked, fixed, net),
+        Section::Deck => {
+            ui.add_enabled_ui(!net.matchmaking.active(), |ui| {
+                deck_card(ui, menu, decks, thumbs)
+            });
+        }
+        Section::Rules { locked, fixed } => {
+            rules_group(ui, game, locked, fixed || net.matchmaking.active(), net)
+        }
         Section::Opponent => {
             opponent::opponent_group(ui, game, menu, my_seat, table, net, decks, thumbs)
         }
@@ -619,6 +647,17 @@ fn section_ui(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn matchmaking_requires_a_deck_and_a_host_capable_build() {
+        let mut state = state(SessionRole::Solo, Segment::Match, DeckState::Missing);
+        assert!(!primary_verb(&state).enabled);
+        state.deck = DeckState::Ready;
+        assert_eq!(primary_verb(&state).label, "find game");
+        assert!(matches!(action_for(&state), Some(Action::FindGame)));
+        state.host_block = Some("engine is loading".into());
+        assert!(!primary_verb(&state).enabled);
+        assert!(action_for(&state).is_none());
+    }
     #[test]
     fn the_phone_footer_reserves_the_reason_line_at_the_touch_style() {
         assert_eq!(super::footer_reserve(false, true, 14.0, 8.0), 8.0);

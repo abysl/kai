@@ -60,6 +60,7 @@ pub fn parse_shot_frame(spec: Option<&str>) -> u32 {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Open {
+    Matchmaking,
     AiSettings,
     DeckBox,
     Decks,
@@ -76,6 +77,9 @@ pub enum EditorSeed {
 pub fn parse_open(spec: &str) -> Option<Open> {
     let mut parts = spec.trim().splitn(3, ':');
     let what = parts.next()?;
+    if what == "matchmaking" {
+        return parts.next().is_none().then_some(Open::Matchmaking);
+    }
     if what == "ai-settings" {
         return parts.next().is_none().then_some(Open::AiSettings);
     }
@@ -233,11 +237,17 @@ fn open_on_request(
     mut choice: ResMut<crate::net::TableChoice>,
     mut editor: ResMut<crate::deck::editor::DeckEditor>,
     mut ai: ResMut<crate::ai::seat::AiLobby>,
+    mut opponent: ResMut<crate::menu::Opponent>,
 ) {
     if frames.0 < OPEN_FRAME {
         return;
     }
     let seed = match harness.open.take() {
+        Some(Open::Matchmaking) => {
+            menu.open_lobby(crate::net::TableGame::FreeForm);
+            opponent.segment = Some(crate::menu::Segment::Match);
+            return;
+        }
         Some(Open::AiSettings) => {
             menu.open_lobby(crate::net::TableGame::FreeForm);
             crate::menu::ai_setup::open(&mut menu, &mut ai, true);

@@ -197,6 +197,13 @@ impl Plugin for MenuPlugin {
             .add_systems(Update, opponent::start_pending_ai);
         crate::os::profile::register(app);
         app.init_resource::<Menu>()
+            .init_resource::<crate::net::matchmaking::Queue>()
+            .add_systems(
+                Update,
+                crate::net::matchmaking::tick
+                    .after(crate::net::drain_net)
+                    .before(watch_session),
+            )
             .init_resource::<Opponent>()
             .init_resource::<decks::LibraryState>()
             .init_resource::<crate::deck::editor::DeckEditor>()

@@ -4,6 +4,7 @@ pub mod gateway;
 pub mod identity;
 #[cfg(target_arch = "wasm32")]
 pub mod js;
+pub mod matchmaking;
 pub mod node;
 #[cfg(target_arch = "wasm32")]
 pub mod page;
@@ -427,6 +428,16 @@ impl HostState {
                     .get(&conn)
                     .cloned()
                     .unwrap_or_else(|| format!("conn:{conn}"));
+                if node::get().is_some_and(|local| !local.matchmaking.admit(&node)) {
+                    send_to(
+                        conn,
+                        HostMsg::End {
+                            reason: "this two-player table is reserved for its matched opponent"
+                                .into(),
+                        },
+                    );
+                    return false;
+                }
                 let (seat, join_entry) = match session.join_as(&node, &name) {
                     Ok(seated) => seated,
                     Err(error) => {
@@ -907,9 +918,13 @@ pub fn drain_net(
                         }
                     }
                 };
+                let empty = agni_core::Table::new();
+                let searching = node::get().is_some_and(|node| {
+                    node.matchmaking.phase() == agni_net::matchmaking::Phase::Preparing
+                });
                 let mut session = match HostSession::host_from_with(
                     &player_name(),
-                    &table.0,
+                    if searching { &empty } else { &table.0 },
                     config,
                     engine,
                     active.module,
@@ -1174,6 +1189,14 @@ fn handle_host_msg(
             roster,
             log,
         } => {
+            if !matchmaking::accepts_welcome(&log, seat, roster.len()) {
+                bridge::cancel_join();
+                client.pending = None;
+                info.role = SessionRole::Ended;
+                info.status =
+                    "the matched table does not have the settings you searched for".into();
+                return;
+            }
             if let Some(reason) = version_mismatch(version) {
                 client.pending = None;
                 info.role = SessionRole::Ended;
@@ -1855,7 +1878,9 @@ pub fn open_tables() -> Vec<OpenTable> {
     node.mesh
         .open_tables()
         .into_iter()
-        .filter(|table| table.host != self_id)
+        .filter(|table| {
+            table.host != self_id && !table.name.starts_with(agni_net::matchmaking::ADVERT_PREFIX)
+        })
         .collect()
 }
 
@@ -1917,6 +1942,10 @@ pub(crate) fn leave_session(
     host: &mut ResMut<HostState>,
     client: &mut ResMut<ClientState>,
 ) {
+    bridge::cancel_join();
+    if let Some(node) = node::get() {
+        node.matchmaking.cancel();
+    }
     if host.session.is_some() {
         close_table();
     }

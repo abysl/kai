@@ -118,6 +118,7 @@ pub struct TableParams<'w> {
 
 #[derive(SystemParam)]
 pub struct NetParams<'w> {
+    pub matchmaking: ResMut<'w, net::matchmaking::Queue>,
     pub info: ResMut<'w, SessionInfo>,
     pub choice: ResMut<'w, net::TableChoice>,
     pub host: ResMut<'w, net::HostState>,
@@ -415,6 +416,7 @@ mod walk {
         world.init_resource::<net::TableChoice>();
         world.init_resource::<net::HostState>();
         world.init_resource::<net::ClientState>();
+        world.init_resource::<net::matchmaking::Queue>();
         world.init_resource::<peers::PeerPanel>();
         world.init_resource::<identity::IdentityPanel>();
         world.init_resource::<crate::ai::seat::AiLobby>();
@@ -563,6 +565,7 @@ mod walk {
                         menu::Segment::Ai,
                         menu::Segment::Friends,
                         menu::Segment::Join,
+                        menu::Segment::Match,
                     ] {
                         let mut world = walk_world(seated);
                         world

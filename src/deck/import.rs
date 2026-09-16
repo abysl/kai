@@ -952,13 +952,14 @@ pub fn apply_history(
 }
 
 pub fn auto_deal(
+    matchmaking: Res<crate::net::matchmaking::Queue>,
     mut panel: ResMut<ImportPanel>,
     seated: Res<SeatedDeck>,
     info: Res<crate::table::SessionInfo>,
     mirror: Res<crate::table::Mirror>,
     mut deal_requests: MessageWriter<DealDeckRequested>,
 ) {
-    if !panel.auto_deal {
+    if !panel.auto_deal || matchmaking.active() {
         return;
     }
     let Some(record) = &seated.0 else {
