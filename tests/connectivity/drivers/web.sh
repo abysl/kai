@@ -41,7 +41,7 @@ note_gateway() {
   local role
   role="$(printf '%s' "$plan" | python3 -c 'import json,sys; r=json.load(sys.stdin)["role"]; print("host" if r=="host" else "join")')"
   [ "$role" = host ] || return 0
-  http_answers "${GATEWAY_PROBE_URL:-https://dev1.dragon-pierce.ts.net/gateway/status}" \
+  http_answers "${GATEWAY_PROBE_URL:-http://127.0.0.1:8787/gateway/status}" \
     || printf 'web driver: no gateway answers; the browser host serves its bundled plugin and joiners take modules from the host\n' >&2
 }
 

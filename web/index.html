@@ -126,7 +126,7 @@
     state.text = "";
     state.error = "";
     if (!window.isSecureContext) {
-      fail("the browser only shares the clipboard over https — open this page on kai.rae.blue");
+      fail("the browser only shares the clipboard in a secure context — open this page over HTTPS");
       return;
     }
     const clipboard = navigator.clipboard;

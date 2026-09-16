@@ -12,7 +12,6 @@ use web_time::{SystemTime, UNIX_EPOCH};
 
 use bevy_egui::egui;
 
-const DEFAULT_URL: &str = "https://logs.rae.blue/ingest/loki/api/v1/push";
 #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
 const SYSTEM_CONFIG: &str = "/etc/kai/telemetry.toml";
 const QUEUE_CAP: usize = 2048;
@@ -219,8 +218,7 @@ fn load() -> Option<Shipping> {
         .ok()
         .filter(|u| !u.is_empty())
         .or_else(|| parse_kv(&file, "url"))
-        .or_else(|| parse_kv(&system, "url"))
-        .unwrap_or_else(|| DEFAULT_URL.into());
+        .or_else(|| parse_kv(&system, "url"))?;
     let client_id = std::env::var("KAI_CLIENT_ID")
         .ok()
         .filter(|c| !c.is_empty())
@@ -266,9 +264,7 @@ fn load() -> Option<Shipping> {
     let file = std::fs::read_to_string(config_file()?).unwrap_or_default();
     let baked = baked_defaults();
     let token = parse_kv(&file, "token").or_else(|| parse_kv(&baked, "token"))?;
-    let url = parse_kv(&file, "url")
-        .or_else(|| parse_kv(&baked, "url"))
-        .unwrap_or_else(|| DEFAULT_URL.into());
+    let url = parse_kv(&file, "url").or_else(|| parse_kv(&baked, "url"))?;
     let client_id = parse_kv(&file, "client_id")
         .or_else(crate::os::android::device_model)
         .unwrap_or_else(|| "android".into());
@@ -335,8 +331,7 @@ async fn fetch_origin_defaults() -> Option<(String, String)> {
     let url = parsed
         .get("url")
         .and_then(|u| u.as_str())
-        .filter(|u| !u.is_empty())
-        .unwrap_or(DEFAULT_URL)
+        .filter(|u| !u.is_empty())?
         .to_string();
     Some((token, url))
 }
@@ -358,9 +353,7 @@ fn spawn_defaults_fetch() {
 fn load() -> Option<Shipping> {
     let defaults = ORIGIN_DEFAULTS.lock().clone();
     let token = stored("kai_telemetry_token").or_else(|| defaults.as_ref().map(|d| d.0.clone()))?;
-    let url = stored("kai_telemetry_url")
-        .or_else(|| defaults.map(|d| d.1))
-        .unwrap_or_else(|| DEFAULT_URL.into());
+    let url = stored("kai_telemetry_url").or_else(|| defaults.map(|d| d.1))?;
     let client_id = stored("kai_client_id").unwrap_or_else(|| {
         let id = format!("web-{:08x}", (js_sys::Math::random() * 4294967296.0) as u32);
         if let Some(storage) = local_storage() {
@@ -541,7 +534,9 @@ fn shipping_line() -> String {
 #[cfg(any(target_os = "android", target_arch = "wasm32"))]
 fn token_controls(ui: &mut egui::Ui, panel: &mut TelemetryPanel) {
     if SHIPPING.lock().is_none() {
-        ui.label(egui::RichText::new("paste an ingest token to ship logs").weak());
+        ui.label(
+            egui::RichText::new("log shipping needs a configured collector URL and token").weak(),
+        );
     }
     ui.horizontal(|ui| {
         ui.add(
@@ -579,7 +574,7 @@ fn token_controls(ui: &mut egui::Ui, panel: &mut TelemetryPanel) {
 fn token_controls(ui: &mut egui::Ui, _panel: &mut TelemetryPanel) {
     ui.label(
         egui::RichText::new(format!(
-            "token and url come from KAI_INGEST_TOKEN, {} or {SYSTEM_CONFIG}",
+            "set KAI_INGEST_TOKEN and KAI_INGEST_URL, or configure {} or {SYSTEM_CONFIG}",
             config_file().display()
         ))
         .weak(),

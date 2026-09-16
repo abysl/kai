@@ -132,6 +132,7 @@ dependencies = [
 [[package]]
 name = "agni-core"
 version = "0.1.0"
+source = "git+https://github.com/abysl/agni#1bbf72781968d8581aeecc947a03ce72315bdafe"
 dependencies = [
  "serde",
 ]
@@ -139,6 +140,7 @@ dependencies = [
 [[package]]
 name = "agni-deck"
 version = "0.1.0"
+source = "git+https://github.com/abysl/agni#1bbf72781968d8581aeecc947a03ce72315bdafe"
 dependencies = [
  "serde",
 ]
@@ -146,6 +148,7 @@ dependencies = [
 [[package]]
 name = "agni-engine-host"
 version = "0.1.0"
+source = "git+https://github.com/abysl/agni#1bbf72781968d8581aeecc947a03ce72315bdafe"
 dependencies = [
  "agni-sim",
  "blake3",
@@ -158,6 +161,7 @@ dependencies = [
 [[package]]
 name = "agni-importers"
 version = "0.1.0"
+source = "git+https://github.com/abysl/agni#1bbf72781968d8581aeecc947a03ce72315bdafe"
 dependencies = [
  "agni-deck",
  "agni-mtg",
@@ -172,6 +176,7 @@ dependencies = [
 [[package]]
 name = "agni-mtg"
 version = "0.1.0"
+source = "git+https://github.com/abysl/agni#1bbf72781968d8581aeecc947a03ce72315bdafe"
 dependencies = [
  "agni-core",
  "agni-deck",
@@ -181,6 +186,7 @@ dependencies = [
 [[package]]
 name = "agni-net"
 version = "0.1.0"
+source = "git+https://github.com/abysl/agni#1bbf72781968d8581aeecc947a03ce72315bdafe"
 dependencies = [
  "agni-core",
  "agni-sim",
@@ -197,10 +203,12 @@ dependencies = [
 [[package]]
 name = "agni-plugin-sdk"
 version = "0.1.0"
+source = "git+https://github.com/abysl/agni#1bbf72781968d8581aeecc947a03ce72315bdafe"
 
 [[package]]
 name = "agni-riftbound"
 version = "0.1.0"
+source = "git+https://github.com/abysl/agni#1bbf72781968d8581aeecc947a03ce72315bdafe"
 dependencies = [
  "agni-core",
  "agni-deck",
@@ -210,6 +218,7 @@ dependencies = [
 [[package]]
 name = "agni-riftbound-turns"
 version = "0.1.0"
+source = "git+https://github.com/abysl/agni#1bbf72781968d8581aeecc947a03ce72315bdafe"
 dependencies = [
  "agni-plugin-sdk",
 ]
@@ -217,6 +226,7 @@ dependencies = [
 [[package]]
 name = "agni-sim"
 version = "0.1.0"
+source = "git+https://github.com/abysl/agni#1bbf72781968d8581aeecc947a03ce72315bdafe"
 dependencies = [
  "agni-core",
  "ciborium",
@@ -1598,7 +1608,7 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-time",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -3195,7 +3205,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -4891,7 +4901,7 @@ dependencies = [
 
 [[package]]
 name = "kai"
-version = "0.16.3"
+version = "0.16.4"
 dependencies = [
  "agni-core",
  "agni-deck",
@@ -5629,7 +5639,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -6194,7 +6204,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7d8fae84b431384b68627d0f9b3b1245fcf9f46f6c0e3dc902e9dce64edd1967"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -7055,7 +7065,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.12.1",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -7113,7 +7123,7 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "webpki-root-certs",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -7518,7 +7528,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c3d1e2c7f27f8d4cb10542a02c49005dbd6e93095799d6f3be745fae9f8fedd4"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -7559,6 +7569,7 @@ dependencies = [
 [[package]]
 name = "spirit-core"
 version = "0.1.0"
+source = "git+https://github.com/abysl/spirit-library#f54d79a8302f5430acb840aa7cc820672d7b56d7"
 dependencies = [
  "blake3",
  "ciborium",
@@ -7570,6 +7581,7 @@ dependencies = [
 [[package]]
 name = "spirit-index"
 version = "0.1.0"
+source = "git+https://github.com/abysl/spirit-library#f54d79a8302f5430acb840aa7cc820672d7b56d7"
 dependencies = [
  "ciborium",
  "serde",
@@ -7579,6 +7591,7 @@ dependencies = [
 [[package]]
 name = "spirit-node"
 version = "0.1.0"
+source = "git+https://github.com/abysl/spirit-library#f54d79a8302f5430acb840aa7cc820672d7b56d7"
 dependencies = [
  "ciborium",
  "getrandom 0.4.3",
@@ -7599,6 +7612,7 @@ dependencies = [
 [[package]]
 name = "spirit-routing"
 version = "0.1.0"
+source = "git+https://github.com/abysl/spirit-library#f54d79a8302f5430acb840aa7cc820672d7b56d7"
 dependencies = [
  "ciborium",
  "spirit-core",
@@ -7608,6 +7622,7 @@ dependencies = [
 [[package]]
 name = "spirit-schema"
 version = "0.1.0"
+source = "git+https://github.com/abysl/spirit-library#f54d79a8302f5430acb840aa7cc820672d7b56d7"
 dependencies = [
  "ciborium",
  "serde",
@@ -7617,6 +7632,7 @@ dependencies = [
 [[package]]
 name = "spirit-sdk"
 version = "0.1.0"
+source = "git+https://github.com/abysl/spirit-library#f54d79a8302f5430acb840aa7cc820672d7b56d7"
 dependencies = [
  "spirit-core",
  "spirit-index",
@@ -9061,7 +9077,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]

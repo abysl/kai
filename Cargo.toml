@@ -1,6 +1,6 @@
 [package]
 name = "kai"
-version = "0.16.3"
+version = "0.16.4"
 edition = "2021"
 default-run = "kai"
 
@@ -14,13 +14,13 @@ path = "src/bin/kai_cli.rs"
 required-features = ["headless"]
 
 [dependencies]
-agni-core = { git = "https://git.rae.blue/abysl/agni" }
-agni-deck = { git = "https://git.rae.blue/abysl/agni" }
-agni-mtg = { git = "https://git.rae.blue/abysl/agni" }
-agni-net = { git = "https://git.rae.blue/abysl/agni" }
-agni-plugin-sdk = { git = "https://git.rae.blue/abysl/agni" }
-agni-riftbound = { git = "https://git.rae.blue/abysl/agni" }
-agni-sim = { git = "https://git.rae.blue/abysl/agni" }
+agni-core = { git = "https://github.com/abysl/agni" }
+agni-deck = { git = "https://github.com/abysl/agni" }
+agni-mtg = { git = "https://github.com/abysl/agni" }
+agni-net = { git = "https://github.com/abysl/agni" }
+agni-plugin-sdk = { git = "https://github.com/abysl/agni" }
+agni-riftbound = { git = "https://github.com/abysl/agni" }
+agni-sim = { git = "https://github.com/abysl/agni" }
 serde_bytes = "0.11"
 bevy = { version = "0.19", features = [
   "jpeg",
@@ -30,22 +30,22 @@ bevy = { version = "0.19", features = [
 bevy_egui = "0.42"
 parking_lot = "0.12"
 qrcode = { version = "0.14", default-features = false }
-spirit-core = { git = "https://git.rae.blue/abysl/spirit-library" }
-spirit-sdk = { git = "https://git.rae.blue/abysl/spirit-library" }
+spirit-core = { git = "https://github.com/abysl/spirit-library" }
+spirit-sdk = { git = "https://github.com/abysl/spirit-library" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 web-time = "1"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-agni-engine-host = { git = "https://git.rae.blue/abysl/agni" }
-agni-importers = { git = "https://git.rae.blue/abysl/agni", default-features = false, features = [
+agni-engine-host = { git = "https://github.com/abysl/agni" }
+agni-importers = { git = "https://github.com/abysl/agni", default-features = false, features = [
   "mtg-native",
   "riftbound-native",
 ] }
 
 [target.'cfg(target_os = "android")'.dependencies]
 jni = "0.21"
-spirit-node = { git = "https://git.rae.blue/abysl/spirit-library", default-features = false, features = [
+spirit-node = { git = "https://github.com/abysl/spirit-library", default-features = false, features = [
   "native",
 ] }
 tokio = { version = "1", features = ["rt-multi-thread", "time"] }
@@ -55,7 +55,7 @@ ureq = "2"
 arboard = "3"
 image = { version = "0.25", default-features = false, features = ["png"] }
 winit = { version = "0.30", default-features = false }
-spirit-node = { git = "https://git.rae.blue/abysl/spirit-library", default-features = false, features = [
+spirit-node = { git = "https://github.com/abysl/spirit-library", default-features = false, features = [
   "native",
 ] }
 tokio = { version = "1", features = ["rt-multi-thread", "time"] }
@@ -63,7 +63,7 @@ ureq = "2"
 gethostname = "1"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-agni-importers = { git = "https://git.rae.blue/abysl/agni", default-features = false, features = [
+agni-importers = { git = "https://github.com/abysl/agni", default-features = false, features = [
   "mtg",
   "riftbound",
 ] }
@@ -72,7 +72,7 @@ send_wrapper = "0.6"
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 js-sys = "0.3"
-spirit-node = { git = "https://git.rae.blue/abysl/spirit-library", default-features = false }
+spirit-node = { git = "https://github.com/abysl/spirit-library", default-features = false }
 tokio = { version = "1", default-features = false, features = [
   "sync",
   "macros",
@@ -96,7 +96,7 @@ web-sys = { version = "0.3", features = [
 ] }
 
 [dev-dependencies]
-agni-riftbound-turns = { git = "https://git.rae.blue/abysl/agni" }
+agni-riftbound-turns = { git = "https://github.com/abysl/agni" }
 
 [features]
 headless = []

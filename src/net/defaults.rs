@@ -3,16 +3,7 @@ pub struct DefaultPeer {
     pub node_id: &'static str,
 }
 
-pub const DEFAULT_PEERS: [DefaultPeer; 2] = [
-    DefaultPeer {
-        label: "dev1",
-        node_id: "82caf003a16275662b7128ff6c6f676d59358cb2bf539c062681bab0f6551264",
-    },
-    DefaultPeer {
-        label: "dev2",
-        node_id: "f097c2b34c11c6350fc9485913e220051e080e3d0bfba9b0b49d418e6f481dbb",
-    },
-];
+pub const DEFAULT_PEERS: [DefaultPeer; 0] = [];
 
 pub const ENV_OVERRIDE: &str = "KAI_DEFAULT_PEERS";
 
@@ -45,13 +36,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn every_default_peer_has_a_full_node_id() {
-        for peer in DEFAULT_PEERS {
-            assert_eq!(peer.node_id.len(), 64);
-            assert!(peer.node_id.chars().all(|c| c.is_ascii_hexdigit()));
-            assert_eq!(label_of(peer.node_id), Some(peer.label));
-        }
-        assert_eq!(label_of("https://dev1.dragon-pierce.ts.net"), None);
+    fn public_builds_have_no_baked_development_peers() {
+        assert!(DEFAULT_PEERS.is_empty());
+        assert_eq!(label_of("https://example.com"), None);
     }
 
     #[test]
@@ -85,12 +72,12 @@ mod origin_tests {
     #[test]
     fn only_a_named_https_origin_is_tried_as_a_gateway_proxy() {
         assert_eq!(
-            proxied_origin("https://kai.rae.blue"),
-            Some("https://kai.rae.blue".into())
+            proxied_origin("https://example.com"),
+            Some("https://example.com".into())
         );
         assert_eq!(proxied_origin("http://127.0.0.1:8123"), None);
         assert_eq!(proxied_origin("https://127.0.0.1:8443"), None);
         assert_eq!(proxied_origin("https://localhost:8443"), None);
-        assert_eq!(proxied_origin("http://kai.rae.blue"), None);
+        assert_eq!(proxied_origin("http://example.com"), None);
     }
 }
