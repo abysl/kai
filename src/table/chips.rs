@@ -627,8 +627,13 @@ pub fn strip_digits_ui(
         if claimed.taken(*key) {
             continue;
         }
-        if let Some(index) = digit_key(*key).and_then(|digit| chips.get(digit - 1)) {
-            sender.fire(&panel.view.affordances[*index]);
+        let indexed = chips
+            .iter()
+            .find(|index| plugin_ui::effective_hotkey(&panel.view, **index) == Some(*key))
+            .copied()
+            .or_else(|| digit_key(*key).and_then(|digit| chips.get(digit - 1).copied()));
+        if let Some(index) = indexed {
+            sender.fire(&panel.view.affordances[index]);
             return Ok(());
         }
     }

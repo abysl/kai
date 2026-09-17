@@ -17,6 +17,15 @@ The compact chain rail cleared its hover target, discard rows could not supply a
 
 Chain and discard browsing now drive a visibility-checked inspector preview. Public discard stays limited to declared discard zones and uses the accepted face visibility. Large non-card prompt options use a searchable selector backed only by the existing affordances. Yes and no map to `1` and `2`; `x` no longer fires a no answer.
 
+The follow-up groups inspector inputs in one `SystemParam`, gives an explicit
+chain or pile hover priority over stale selected cards unless an inspector pin
+is active, and adds counted trash buttons while a prompt is open. The selector
+now includes enabled card and non-card prompt options. Its matching uses the
+public visible card name plus matching catalog group names, tags, and rules
+text; The List's offered tag labels remain the authoritative selectable list.
+Yes/no prompt hotkeys are normalized in Kai so dispatch, visual labels,
+keyboard claiming, cancel detection, and strip digit handling all use `1`/`2`.
+
 ## Tests
 
 - `cargo fmt --check`

@@ -237,6 +237,27 @@ pub fn pile_openable(kind: ZoneKind, count: usize) -> bool {
     kind == ZoneKind::Discard && count > 0
 }
 
+pub fn discard_piles(
+    zones: &[agni_sim::wire::ZoneDecl],
+    table: &Table,
+    players: usize,
+) -> Vec<(u16, PlayerId, usize)> {
+    let mut piles = Vec::new();
+    for decl in zones.iter().filter(|decl| decl.kind == ZoneKind::Discard) {
+        let seats: Vec<PlayerId> = match decl.owner {
+            agni_sim::wire::ZoneOwner::PerSeat => (0..players as u8).map(PlayerId).collect(),
+            _ => vec![PlayerId(0)],
+        };
+        for seat in seats {
+            let count = table.in_area(seat, Zone::Plugin(decl.id)).count();
+            if count > 0 {
+                piles.push((decl.id, seat, count));
+            }
+        }
+    }
+    piles
+}
+
 pub fn toggle_pile(
     current: Option<(u16, PlayerId)>,
     zone: u16,
