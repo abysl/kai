@@ -1631,6 +1631,8 @@ mod platform {
     thread_local! {
         static BUNDLED: RefCell<BTreeMap<String, ([u8; 32], Vec<u8>)>> =
             const { RefCell::new(BTreeMap::new()) };
+        static PENDING_BUNDLES: RefCell<crate::engine::selection::PendingBundles> =
+            RefCell::new(crate::engine::selection::PendingBundles::default());
         static ROWS: RefCell<Vec<ModuleRow>> = const { RefCell::new(Vec::new()) };
         static LISTING: RefCell<bool> = const { RefCell::new(false) };
         static STATUS: RefCell<String> = const { RefCell::new(String::new()) };
@@ -1688,9 +1690,16 @@ mod platform {
 
     pub fn fetch_bundle() {
         for name in [RIFTBOUND_REF, MTG_REF] {
+            PENDING_BUNDLES.with(|pending| pending.borrow_mut().start(name));
             wasm_bindgen_futures::spawn_local(async move {
                 let url = format!("./assets/plugins/{name}.wasm");
-                match crate::net::gateway::fetch_bytes(&url).await {
+                let fetched = n0_future::time::timeout(
+                    std::time::Duration::from_secs(20),
+                    crate::net::gateway::fetch_bytes(&url),
+                )
+                .await
+                .unwrap_or_else(|_| Err(FetchError::Other("download timed out".into())));
+                match fetched {
                     Ok(bytes) => {
                         let hash = *blake3::hash(&bytes).as_bytes();
                         BUNDLED.with(|slot| {
@@ -1702,6 +1711,7 @@ mod platform {
                         set_status(format!("bundled plugin {name}: {error}"));
                     }
                 }
+                PENDING_BUNDLES.with(|pending| pending.borrow_mut().finish(name));
             });
         }
     }
@@ -1737,6 +1747,9 @@ mod platform {
     fn held_plugin(name: &str) -> Result<(ModuleRow, [u8; 32]), String> {
         if let Some(bundled) = bundled_row(name) {
             return Ok(bundled);
+        }
+        if PENDING_BUNDLES.with(|pending| pending.borrow().contains(name)) {
+            return Err(format!("waiting for this build's bundled {name} rules…"));
         }
         let rows = rows();
         if rows.is_empty() {

@@ -26,9 +26,11 @@ controls and keeps its admission restriction for reconnects.
 
 Use `KAI_OPEN=matchmaking` for an empty free-form lobby in screenshot checks.
 
-Browser hosting waits for the bundled engine download to finish (or fail after
-20 seconds). A valid bundle takes precedence over a gateway engine in either
-download order. Gateway fallback remains available when the bundle fails. This
+Browser hosting waits for the bundled engine and the selected game's bundled
+plugin downloads to finish (or fail after 20 seconds each). A valid bundle takes
+precedence over a gateway module in either download order. One game's completed
+download cannot unlock another game's pending plugin. Gateway fallback remains
+available when the bundle fails. This
 keeps released web and Android clients on the same engine fingerprint; an
 older gateway copy must not replace the engine shipped with the app. Existing
 table sessions keep the engine instance pinned when they were created.

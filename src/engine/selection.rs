@@ -4,6 +4,23 @@ pub enum Source {
     Gateway,
 }
 
+#[derive(Debug, Default)]
+pub struct PendingBundles(std::collections::BTreeSet<String>);
+
+impl PendingBundles {
+    pub fn start(&mut self, name: &str) {
+        self.0.insert(name.into());
+    }
+
+    pub fn finish(&mut self, name: &str) {
+        self.0.remove(name);
+    }
+
+    pub fn contains(&self, name: &str) -> bool {
+        self.0.contains(name)
+    }
+}
+
 #[derive(Debug)]
 pub struct Selection {
     source: Option<Source>,
@@ -40,6 +57,18 @@ impl Selection {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn each_plugin_waits_for_its_own_bundled_download_before_fallback() {
+        let mut pending = PendingBundles::default();
+        pending.start("riftbound");
+        pending.start("mtg");
+        pending.finish("mtg");
+        assert!(pending.contains("riftbound"));
+        assert!(!pending.contains("mtg"));
+        pending.finish("riftbound");
+        assert!(!pending.contains("riftbound"));
+    }
 
     #[test]
     fn the_bundle_wins_in_either_download_order() {
