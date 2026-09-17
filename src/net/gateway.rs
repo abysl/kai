@@ -311,6 +311,9 @@ pub fn request_asset(journal: &str, name: &str, url: &str, now: f64) {
         request_remote_art(name, url, Some(hash), now);
         return;
     }
+    if journal == crate::table::playmat::JOURNAL {
+        return;
+    }
     let Some(base) = gateway_base() else {
         return;
     };

@@ -2,7 +2,31 @@
 
 Audience: players choosing artwork and maintainers updating the curated selection.
 
-Open **Settings → look** to choose felt or a playmat. The three curated images
+Open **Settings → look** to choose felt or a playmat.
+
+## Your own picture
+
+Choose **Choose playmat picture…** and select a PNG, JPEG or WebP file up to
+16 MiB and 24 million pixels. Kai makes a smaller JPEG copy, up to 2048 pixels
+per side, without the original file's metadata. The original stays untouched.
+Your copy is saved on your device or in this browser's local storage, outside
+the shared content store. Replacing it replaces the saved copy.
+
+While selected at a multiplayer table, the picture is sent directly to the
+other players over an encrypted peer connection. It is never uploaded to the
+shared content service or advertised through its asset index. Other players
+can still save or screenshot a picture they receive; use artwork you have
+permission to share. Selecting felt or another mat stops offering the picture.
+
+Enable **Disable opponent playmat** to show felt on opponents' sides instead.
+It also prevents new playmat downloads and cancels pending personal-picture
+transfers. This preference is saved on your device. Legacy arbitrary image
+links are no longer fetched; download an authorized image yourself and choose
+the file instead.
+
+## Curated artwork and credits
+
+The three curated images
 below were supplied by the maintainer with permission to use them in Kai.
 Their original pixels and embedded signatures are preserved. Display names
 describe the selection; they do not claim authorship.

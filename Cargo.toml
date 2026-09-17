@@ -1,6 +1,6 @@
 [package]
 name = "kai"
-version = "0.19.3"
+version = "0.20.0"
 edition = "2021"
 default-run = "kai"
 
@@ -35,6 +35,12 @@ spirit-sdk = { git = "https://github.com/abysl/spirit-library" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 web-time = "1"
+base64 = "0.22"
+image = { version = "0.25", default-features = false, features = [
+  "png",
+  "jpeg",
+  "webp",
+] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 agni-engine-host = { git = "https://github.com/abysl/agni" }
@@ -53,7 +59,7 @@ ureq = "2"
 
 [target.'cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))'.dependencies]
 arboard = "3"
-image = { version = "0.25", default-features = false, features = ["png"] }
+rfd = "0.17"
 winit = { version = "0.30", default-features = false }
 spirit-node = { git = "https://github.com/abysl/spirit-library", default-features = false, features = [
   "native",
@@ -96,6 +102,11 @@ web-sys = { version = "0.3", features = [
   "Response",
   "AbortController",
   "AbortSignal",
+  "HtmlInputElement",
+  "FileList",
+  "File",
+  "Blob",
+  "Event",
 ] }
 
 [dev-dependencies]

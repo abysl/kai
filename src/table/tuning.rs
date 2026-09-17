@@ -3,7 +3,7 @@ use super::coach::Seen;
 use super::dim;
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
-#[cfg(not(any(target_arch = "wasm32", target_os = "android")))]
+#[cfg(not(target_arch = "wasm32"))]
 use std::path::PathBuf;
 
 #[derive(Resource, Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -36,6 +36,8 @@ pub struct Tuning {
     pub view_version: u32,
     #[serde(default)]
     pub playmat: String,
+    #[serde(default)]
+    pub disable_opponent_playmat: bool,
     #[serde(default = "default_auto_pass")]
     pub auto_pass: bool,
     #[serde(default)]
@@ -124,6 +126,7 @@ impl Default for Tuning {
             camera_speed: default_camera_speed(),
             view_version: dim::VIEW_VERSION,
             playmat: String::new(),
+            disable_opponent_playmat: false,
             auto_pass: default_auto_pass(),
             ask_anyway: false,
             order_triggers: false,
@@ -140,7 +143,7 @@ impl Default for Tuning {
     }
 }
 
-#[cfg(not(any(target_arch = "wasm32", target_os = "android")))]
+#[cfg(not(target_arch = "wasm32"))]
 pub fn tuning_path() -> PathBuf {
     if let Ok(explicit) = std::env::var("AGNI_TUNING") {
         return explicit.into();
@@ -192,12 +195,13 @@ impl Tuning {
         self
     }
 
-    #[cfg(any(target_arch = "wasm32", target_os = "android"))]
+    #[cfg(target_arch = "wasm32")]
     fn stored() -> Option<Self> {
-        None
+        let storage = web_sys::window()?.local_storage().ok()??;
+        serde_json::from_str(&storage.get_item("kai.tuning").ok()??).ok()
     }
 
-    #[cfg(not(any(target_arch = "wasm32", target_os = "android")))]
+    #[cfg(not(target_arch = "wasm32"))]
     fn stored() -> Option<Self> {
         std::fs::read_to_string(tuning_path())
             .ok()
@@ -205,7 +209,7 @@ impl Tuning {
     }
 
     pub fn save(&self) {
-        #[cfg(not(any(target_arch = "wasm32", target_os = "android")))]
+        #[cfg(not(target_arch = "wasm32"))]
         {
             let path = tuning_path();
             match serde_json::to_string_pretty(self) {
@@ -215,6 +219,14 @@ impl Tuning {
                     }
                 }
                 Err(e) => bevy::log::warn!("tuning serialize failed: {e}"),
+            }
+        }
+        #[cfg(target_arch = "wasm32")]
+        if let Some(storage) =
+            web_sys::window().and_then(|window| window.local_storage().ok().flatten())
+        {
+            if let Ok(json) = serde_json::to_string(self) {
+                let _ = storage.set_item("kai.tuning", &json);
             }
         }
     }

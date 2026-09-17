@@ -217,6 +217,11 @@ pub struct ArtCache {
 }
 
 impl ArtCache {
+    pub fn remove(&mut self, name: &str) {
+        self.bytes.remove(&art_key(name));
+        self.images.remove(&art_key(name));
+    }
+
     pub fn has(&self, name: &str) -> bool {
         self.bytes.contains_key(&art_key(name))
     }
@@ -484,18 +489,36 @@ mod worker {
                 .map_err(|error| error.to_string());
             }
             if let Some(url) = request.playmat_url() {
+                use std::io::Read;
+                let expected = crate::table::playmat::catalog_hash(url)
+                    .ok_or("Personal playmats use the direct table connection")?;
+                let hash =
+                    spirit_core::BlobHash::parse(expected).ok_or("Invalid curated fingerprint")?;
                 let store =
                     spirit_core::BlobStore::open(&self.dir).map_err(|error| error.to_string())?;
-                let journal = crate::table::playmat::JOURNAL;
-                let from_mesh = super::assets::ensure_from_mesh(&store, journal, &request.name);
-                let agent = agni_importers::art::art_agent();
-                let (_, bytes) =
-                    agni_importers::art::fetch_one(&store, journal, &agent, &request.name, url)
+                let bytes = if let Ok(bytes) = store.get(hash) {
+                    bytes
+                } else {
+                    let mut bytes = Vec::new();
+                    agni_importers::art::art_agent()
+                        .get(url)
+                        .timeout(std::time::Duration::from_secs(20))
+                        .call()
+                        .map_err(|error| error.to_string())?
+                        .into_reader()
+                        .take((16 << 20) + 1)
+                        .read_to_end(&mut bytes)
                         .map_err(|error| error.to_string())?;
-                super::validate_download(&bytes, crate::table::playmat::catalog_hash(url))?;
-                if !from_mesh {
-                    super::assets::republish(&self.dir);
-                }
+                    if bytes.len() > 16 << 20 {
+                        return Err("Curated image exceeds the download limit".into());
+                    }
+                    bytes
+                };
+                super::validate_download(&bytes, Some(expected))?;
+                agni_importers::art::Journal::open(&store, crate::table::playmat::JOURNAL)
+                    .put(&store, &request.name, &bytes)
+                    .map_err(|error| error.to_string())?;
+                super::assets::republish(&self.dir);
                 return Ok(Some(bytes));
             }
             if request.is_back() {

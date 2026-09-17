@@ -7,5 +7,6 @@ pub mod entropy;
 pub mod icon;
 pub mod ime;
 pub mod paths;
+pub mod picture;
 pub mod profile;
 pub mod qr;

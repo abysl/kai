@@ -1702,14 +1702,19 @@ pub fn route_spawns(
 
 pub fn route_playmat_picks(
     tuning: Res<crate::table::Tuning>,
+    personal: Res<crate::table::personal_playmat::PersonalPlaymat>,
     library: Res<crate::table::playmat::PlaymatLibrary>,
     mut host: ResMut<HostState>,
     mut info: ResMut<SessionInfo>,
     my_seat: Res<MySeat>,
     mut announced: Local<Option<(SessionRole, String)>>,
 ) {
-    let wanted = crate::table::playmat::shareable(&tuning.playmat, &library);
-    let signature = (info.role, tuning.playmat.clone());
+    let wanted = if tuning.playmat == crate::table::personal_playmat::CHOICE {
+        personal.shared.clone()
+    } else {
+        crate::table::playmat::shareable(&tuning.playmat, &library)
+    };
+    let signature = (info.role, wanted.clone().unwrap_or_default());
     if announced.as_ref() == Some(&signature) {
         return;
     }

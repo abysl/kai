@@ -8,8 +8,6 @@ pub const FELT: &str = "";
 pub const ART_PREFIX: &str = "playmat:";
 pub const CARD_PREFIX: &str = "card:";
 pub const LIBRARY_FILE: &str = "playmats.json";
-pub const WEB_PLAYMAT_NOTE: &str =
-    "curated art is loaded from the content service; custom links use the gateway's supported sources";
 pub const JOURNAL: &str = "playmats";
 const THUMB: egui::Vec2 = egui::vec2(120.0, 62.0);
 const CAPTION_H: f32 = 22.0;
@@ -94,6 +92,8 @@ pub fn art_name(entry_name: &str) -> String {
 pub fn cache_name(choice: &str) -> Option<String> {
     if choice.is_empty() {
         None
+    } else if choice == super::personal_playmat::CHOICE {
+        Some(super::personal_playmat::CACHE.into())
     } else if let Some(card) = choice.strip_prefix(CARD_PREFIX) {
         Some(card.to_string())
     } else {
@@ -107,15 +107,21 @@ pub fn shareable(choice: &str, library: &PlaymatLibrary) -> Option<String> {
     } else if choice.starts_with(CARD_PREFIX) {
         Some(choice.to_string())
     } else {
-        library.entry(choice).map(|entry| entry.url.clone())
+        library
+            .entry(choice)
+            .filter(|entry| catalog_hash(&entry.url).is_some())
+            .map(|entry| entry.url.clone())
     }
 }
 
 pub fn cache_name_of_shared(shared: &str, library: &PlaymatLibrary) -> Option<String> {
+    if let Some(name) = super::personal_playmat::shared_cache(shared) {
+        return Some(name);
+    }
     if let Some(card) = shared.strip_prefix(CARD_PREFIX) {
         return Some(card.to_string());
     }
-    if !(shared.starts_with("http://") || shared.starts_with("https://")) {
+    if catalog_hash(shared).is_none() {
         return None;
     }
     Some(
@@ -127,6 +133,9 @@ pub fn cache_name_of_shared(shared: &str, library: &PlaymatLibrary) -> Option<St
 }
 
 pub fn request_for_shared(shared: &str, library: &PlaymatLibrary) -> Option<ArtRequest> {
+    if shared.starts_with(agni_net::personal_asset::PREFIX) {
+        return None;
+    }
     let name = cache_name_of_shared(shared, library)?;
     Some(if let Some(card) = shared.strip_prefix(CARD_PREFIX) {
         ArtRequest::by_name(crate::render::art::ArtGame::Riftbound, card)
@@ -287,8 +296,9 @@ pub fn stage_thumbs(
         .map(|entry| art_name(&entry.name))
         .collect();
     wanted.extend(battlefields_of(&seated));
+    wanted.push(super::personal_playmat::CACHE.into());
     for name in wanted {
-        if thumbs.ids.contains_key(&name) {
+        if thumbs.ids.contains_key(&name) && name != super::personal_playmat::CACHE {
             continue;
         }
         let Some(handle) = art.image(&name, &mut images) else {
@@ -320,6 +330,9 @@ pub fn restore_saved(library: Res<PlaymatLibrary>, mut art: ResMut<ArtCache>) {
     };
     let journal = agni_importers::art::load_journal(&store, JOURNAL);
     for entry in &library.entries {
+        if catalog_hash(&entry.url).is_none() {
+            continue;
+        }
         let key = art_name(&entry.name);
         if art.has(&key) {
             continue;
@@ -344,6 +357,7 @@ pub fn ensure_fetched(
     for entry in library
         .entries
         .iter()
+        .filter(|entry| catalog_hash(&entry.url).is_some())
         .filter(|entry| settings.open || entry.name == tuning.playmat)
     {
         let name = art_name(&entry.name);
@@ -356,16 +370,20 @@ pub fn ensure_fetched(
 #[cfg(target_arch = "wasm32")]
 pub fn fetch_roster_mats(
     info: Res<SessionInfo>,
+    tuning: Res<Tuning>,
     library: Res<PlaymatLibrary>,
     my_seat: Res<MySeat>,
     art: Res<ArtCache>,
     time: Res<bevy::prelude::Time>,
 ) {
+    if tuning.disable_opponent_playmat {
+        return;
+    }
     for seat in info.roster.iter().filter(|seat| seat.seat != my_seat.0 .0) {
         let Some(shared) = seat.playmat.as_deref() else {
             continue;
         };
-        if shared.starts_with(CARD_PREFIX) {
+        if shared.starts_with(CARD_PREFIX) || catalog_hash(shared).is_none() {
             continue;
         }
         let Some(name) = cache_name_of_shared(shared, &library) else {
@@ -392,6 +410,7 @@ pub fn ensure_fetched(
         library
             .entries
             .iter()
+            .filter(|entry| catalog_hash(&entry.url).is_some())
             .filter(|entry| settings.open || entry.name == tuning.playmat)
             .filter(|entry| !art.has(&art_name(&entry.name)))
             .map(|entry| ArtRequest::playmat(art_name(&entry.name), &entry.url)),
@@ -401,11 +420,12 @@ pub fn ensure_fetched(
 #[cfg(not(target_arch = "wasm32"))]
 pub fn fetch_roster_mats(
     info: Res<SessionInfo>,
+    tuning: Res<Tuning>,
     library: Res<PlaymatLibrary>,
     my_seat: Res<MySeat>,
     art: Res<ArtCache>,
 ) {
-    if !info.is_changed() {
+    if tuning.disable_opponent_playmat || (!info.is_changed() && !tuning.is_changed()) {
         return;
     }
     let wanted: Vec<ArtRequest> = info
@@ -430,6 +450,9 @@ pub fn mat_of_seat(
 ) -> Option<String> {
     if seat == my_seat || roster.is_empty() {
         return cache_name(&tuning.playmat);
+    }
+    if tuning.disable_opponent_playmat {
+        return None;
     }
     agni_net::session::roster_playmat(roster, seat.0)
         .and_then(|shared| cache_name_of_shared(shared, library))
@@ -488,7 +511,7 @@ fn swatch(
 
 pub fn playmat_section(
     ui: &mut egui::Ui,
-    metrics: &crate::settings::PanelMetrics,
+    _metrics: &crate::settings::PanelMetrics,
     tuning: &mut ResMut<Tuning>,
     library: &mut ResMut<PlaymatLibrary>,
     thumbs: &PlaymatThumbs,
@@ -497,9 +520,28 @@ pub fn playmat_section(
 ) {
     let current = tuning.playmat.clone();
     ui.label(egui::RichText::new(format!("playmat: {}", label_of(&current))).weak());
+    ui.checkbox(
+        &mut tuning.disable_opponent_playmat,
+        "Disable opponent playmat",
+    );
+    if ui.button("Choose playmat picture…").clicked() {
+        crate::os::picture::choose();
+    }
+    ui.label(egui::RichText::new("Your picture is shared directly with players at your table, never uploaded to the content service.").weak());
     ui.horizontal_wrapped(|ui| {
         if swatch(ui, None, current.is_empty(), "felt").clicked() {
             tuning.playmat = FELT.into();
+        }
+        if art.has(super::personal_playmat::CACHE)
+            && swatch(
+                ui,
+                thumbs.ids.get(super::personal_playmat::CACHE).copied(),
+                current == super::personal_playmat::CHOICE,
+                super::personal_playmat::CHOICE,
+            )
+            .clicked()
+        {
+            tuning.playmat = super::personal_playmat::CHOICE.into();
         }
         let entries: Vec<PlaymatEntry> = library.entries.clone();
         for entry in entries {
@@ -548,34 +590,6 @@ pub fn playmat_section(
         ui.hyperlink_to("Clya Lyren · Ahri", "https://clyalyren.com/");
         ui.hyperlink_to("bbi · portrait and duet", "https://x.com/totatso");
     });
-    ui.horizontal_wrapped(|ui| {
-        ui.label("add from link");
-        ui.add(
-            egui::TextEdit::singleline(&mut library.link)
-                .hint_text("https://…/image.jpg")
-                .desired_width(metrics.field_w.min(260.0)),
-        );
-        ui.add(
-            egui::TextEdit::singleline(&mut library.link_name)
-                .hint_text("name (optional)")
-                .desired_width(metrics.name_w),
-        );
-        if ui.button("add").clicked() {
-            let (link, link_name) = (library.link.clone(), library.link_name.clone());
-            match library.add(&link_name, &link) {
-                Ok(name) => {
-                    library.save();
-                    library.link.clear();
-                    library.link_name.clear();
-                    library.note = Some(format!("added {name} — fetching it now"));
-                    tuning.playmat = name;
-                }
-                Err(error) => library.note = Some(error),
-            }
-        }
-    });
-    #[cfg(target_arch = "wasm32")]
-    ui.label(egui::RichText::new(WEB_PLAYMAT_NOTE).weak());
     if let Some(note) = &library.note {
         ui.label(egui::RichText::new(note).weak());
     }
@@ -684,5 +698,31 @@ mod tests {
             Some(("bbi", "https://x.com/totatso"))
         );
         assert_eq!(artist_credit("https://example.org/art.png"), None);
+    }
+
+    #[test]
+    fn personal_urls_are_not_forwarded_to_content_services_and_opponents_can_be_hidden() {
+        let mut library = PlaymatLibrary::default();
+        library
+            .add("legacy", "https://example.org/private.jpg")
+            .unwrap();
+        assert!(shareable("legacy", &library).is_none());
+        assert!(request_for_shared("https://example.org/private.jpg", &library).is_none());
+        let roster = vec![agni_net::session::SeatInfo {
+            seat: 1,
+            name: "guest".into(),
+            host: false,
+            connected: true,
+            color: 1,
+            playmat: Some(CATALOG[0].1.into()),
+        }];
+        let mut tuning = Tuning {
+            playmat: CATALOG[1].0.into(),
+            ..default()
+        };
+        assert!(mat_of_seat(PlayerId(1), PlayerId(0), &tuning, &roster, &library).is_some());
+        tuning.disable_opponent_playmat = true;
+        assert!(mat_of_seat(PlayerId(1), PlayerId(0), &tuning, &roster, &library).is_none());
+        assert!(mat_of_seat(PlayerId(0), PlayerId(0), &tuning, &roster, &library).is_some());
     }
 }

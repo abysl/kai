@@ -77,6 +77,7 @@ pub mod inspector;
 mod interaction;
 mod layout;
 pub mod manual;
+pub mod personal_playmat;
 pub mod plate;
 pub mod playmat;
 pub mod plugin_ui;
@@ -351,6 +352,7 @@ impl Plugin for CardTablePlugin {
             net::redeal_after_new_game.before(net::route_deck_deals),
         );
         app.insert_resource(playmat::PlaymatLibrary::load())
+            .init_resource::<personal_playmat::PersonalPlaymat>()
             .init_resource::<playmat::PlaymatThumbs>()
             .init_resource::<crate::render::egui_art::EguiArt>()
             .init_resource::<chain::ChainHover>()
@@ -360,6 +362,12 @@ impl Plugin for CardTablePlugin {
         app.add_systems(
             Update,
             (playmat::ensure_fetched, playmat::fetch_roster_mats).before(sync_seats),
+        );
+        app.add_systems(
+            Update,
+            personal_playmat::update
+                .before(net::route_playmat_picks)
+                .before(sync_seats),
         );
         app.init_resource::<plugin_ui::PluginPanel>()
             .init_resource::<plugin_ui::RollSecrets>()

@@ -14,6 +14,7 @@ pub struct Node {
     pub mesh: Arc<Mesh>,
     pub table: TableProtocol,
     pub matchmaking: agni_net::matchmaking::Matchmaker,
+    pub personal_asset: agni_net::personal_asset::PersonalAsset,
     pub endpoint: Endpoint,
     #[cfg(not(target_arch = "wasm32"))]
     runtime: tokio::runtime::Handle,
@@ -91,9 +92,12 @@ fn run(dir: std::path::PathBuf) {
         let accepted = table.clone();
         let matchmaking = agni_net::matchmaking::Matchmaker::default();
         let matches = matchmaking.clone();
+        let personal_asset = agni_net::personal_asset::PersonalAsset::new();
+        let pictures = personal_asset.clone();
         match spirit_node::serve_with(&dir, move |router| {
             router.accept(agni_net::table::ALPN, accepted)
                 .accept(agni_net::matchmaking::ALPN, matches)
+                .accept(agni_net::personal_asset::ALPN, pictures)
         })
         .await
         {
@@ -104,6 +108,7 @@ fn run(dir: std::path::PathBuf) {
                     mesh: serving.mesh.clone(),
                     table,
                     matchmaking,
+                    personal_asset,
                     endpoint: serving.endpoint.clone(),
                     runtime: tokio::runtime::Handle::current(),
                     blobs: serving.blobs.clone(),
@@ -220,10 +225,13 @@ pub fn start() {
         let accepted = table.clone();
         let matchmaking = agni_net::matchmaking::Matchmaker::default();
         let matches = matchmaking.clone();
+        let personal_asset = agni_net::personal_asset::PersonalAsset::new();
+        let pictures = personal_asset.clone();
         match spirit_node::serve_in_memory_with(secret, &seeds, move |router| {
             router
                 .accept(agni_net::table::ALPN, accepted)
                 .accept(agni_net::matchmaking::ALPN, matches)
+                .accept(agni_net::personal_asset::ALPN, pictures)
         })
         .await
         {
@@ -234,6 +242,7 @@ pub fn start() {
                     mesh: serving.mesh.clone(),
                     table,
                     matchmaking,
+                    personal_asset,
                     endpoint: serving.endpoint.clone(),
                     blobs: serving.blobs.clone(),
                 };

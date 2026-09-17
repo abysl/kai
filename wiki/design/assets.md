@@ -41,8 +41,31 @@ backs are refreshed when the art cache changes, even on an idle table.
 
 Opening settings loads library previews without requiring a playmat selection.
 The four former built-in playmats are no longer in the catalog; saved selections
-of those names reset to felt. Other custom selections remain unchanged.
+of those names reset to felt. Legacy arbitrary URL entries are not fetched or
+shared. Personal pictures use the separate flow below.
 
 Artwork permissions are separate from the source-code license. See the
 [artwork inventory](../artwork.md). Keep original files and embedded artist
 credits intact when publishing content; only metadata belongs in this repository.
+
+## Personal pictures
+
+`os::picture` owns the desktop, browser and Android file-picker bridges.
+`table::personal_playmat` validates input dimensions and allocation limits,
+reencodes a bounded JPEG without source metadata, and stores only the owner's
+copy under application configuration or browser local storage. It never calls
+Spirit blob-store, journal, asset-index or `serve_bytes` APIs.
+
+During a live table, Agni's personal-asset protocol holds one selected payload
+in memory. Its revocable capability ticket travels through the existing
+playmat roster field, never public discovery. Receivers verify its hash and
+decode limits before putting it in their transient rendering cache. Requests
+are bounded to eight seats, one pending request per seat, and a 30-second
+retry interval. Changed selections, disconnects and the opponent opt-out cancel
+pending requests and evict personal opponent images. The opt-out also gates
+the ordinary curated/card-playmat fetch and rendering paths.
+
+See [Agni's protocol contract](https://github.com/abysl/agni/blob/main/wiki/design/personal-assets.md)
+and [curated service operation](https://github.com/abysl/agni/blob/main/wiki/published-content.md).
+Application fetch guards do not by themselves secure a shared server; servers
+must use a dedicated, reviewed published-only store.

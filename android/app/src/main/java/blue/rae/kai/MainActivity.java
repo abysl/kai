@@ -28,6 +28,42 @@ public class MainActivity extends GameActivity {
     }
 
     private static final int SCAN_REQUEST = 0xC0DE;
+    private static final int PLAYMAT_REQUEST = 0xC0DF;
+
+    public void choosePlaymatPicture() {
+        runOnUiThread(() -> {
+            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+            intent.addCategory(Intent.CATEGORY_OPENABLE);
+            intent.setType("image/*");
+            try {
+                startActivityForResult(intent, PLAYMAT_REQUEST);
+            } catch (RuntimeException error) {
+                nativePlaymatPicture(null, "Could not open the picture picker");
+            }
+        });
+    }
+
+    private void readPlaymatPicture(Intent data) {
+        new Thread(() -> {
+            try (java.io.InputStream input = getContentResolver().openInputStream(data.getData());
+                 java.io.ByteArrayOutputStream output = new java.io.ByteArrayOutputStream()) {
+                if (input == null) throw new java.io.IOException("Picture unavailable");
+                byte[] buffer = new byte[8192];
+                int count;
+                while ((count = input.read(buffer)) != -1) {
+                    if (output.size() + count > 16 * 1024 * 1024) {
+                        throw new java.io.IOException("Choose a picture smaller than 16 MiB");
+                    }
+                    output.write(buffer, 0, count);
+                }
+                nativePlaymatPicture(output.toByteArray(), "");
+            } catch (Exception error) {
+                nativePlaymatPicture(null, "Could not read picture: " + error.getMessage());
+            }
+        }, "kai-picture").start();
+    }
+
+    private static native void nativePlaymatPicture(byte[] bytes, String error);
 
     private static final String AUTOPLAY_EXTRA = "autoplay";
 
@@ -194,6 +230,14 @@ public class MainActivity extends GameActivity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == PLAYMAT_REQUEST) {
+            if (resultCode == RESULT_OK && data != null && data.getData() != null) {
+                readPlaymatPicture(data);
+            } else {
+                nativePlaymatPicture(null, "");
+            }
+            return;
+        }
         if (requestCode != SCAN_REQUEST || resultCode != RESULT_OK || data == null) {
             return;
         }
