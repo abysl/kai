@@ -47,6 +47,9 @@ Open the deck editor, choose **import**, and paste a TCG Arena deck list,
 starter-deck JSON export, or `https://tcg-arena.fr/import?...` deck link.
 Review the resolved cards and sections, save the deck, then choose it in the
 lobby. TCG Arena `/load/` game-file links are not deck exports.
+Check the chosen champion and sideboard carefully: the text export does not
+identify the chosen champion explicitly, and some starter JSON exports omit
+the sideboard.
 
 ## Add an AI player
 
@@ -122,6 +125,12 @@ Select a card to see its available actions. Dragging requests a move; in
 rules-enforced mode the game may refuse it. Follow the active prompt before
 trying another action. Some prompts concern cards not currently on the table.
 
+Hover a stack card to preview it. Open **trash** to inspect discarded cards;
+available actions there include Reflow when the rules allow it. Large choice
+prompts offer a searchable list. Search by a card's name, rules text, or tag;
+only choices offered by the game can be selected. For yes/no prompts, press
+**1** for yes or **2** for no. **X** remains cancel when cancellation is offered.
+
 Use the table's help panel for the hotkeys available in your build. The table
 menu gives access to help, history, and other table tools. Settings control
 presentation and input; they do not change the game rules.
@@ -130,6 +139,10 @@ On a small screen, some controls move into drawers or sheets. Close the topmost
 sheet before expecting Back or Escape to leave the table.
 
 ## Mulligans and recycling
+
+When paying a card or ability's power cost, choose the runes to recycle if
+more than one legal rune is available. The cost is paid after the selection is
+complete. Some immediate card effects still choose payment runes automatically.
 
 Choose which cards to mulligan or recycle as before. When those cards need to
 be shuffled, each player's app contributes to the shuffle automatically; there

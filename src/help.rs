@@ -86,7 +86,7 @@ pub const VERBS: [Verb; 17] = [
         key: "Space",
     },
     Verb {
-        action: "cancel · skip · decline",
+        action: "cancel · skip",
         mouse: "the hollow chip, or Esc",
         touch: "the hollow chip, or back",
         key: "X · Esc",
@@ -159,11 +159,11 @@ pub const HOTKEYS: [Hotkey; 17] = [
     },
     Hotkey {
         key: "X",
-        effect: "the prompt's cancel · skip · no",
+        effect: "the prompt's cancel or skip; use 2 for no",
     },
     Hotkey {
         key: "1–9",
-        effect: "the nth strip chip, else the nth chip of the selected card",
+        effect: "yes/no uses 1/2; otherwise the nth strip or selected-card chip",
     },
     Hotkey {
         key: "Tab · Shift+Tab",
