@@ -1,42 +1,55 @@
-# Prompt UI review
+# Prompt UI: phone trash preview and offered actions
 
 ## Changed paths
 
-- `src/table/chain.rs`
-- `src/table/inspector.rs`
-- `src/table/mod.rs`
-- `src/table/plugin_ui.rs`
 - `src/table/ui.rs`
 - `wiki/design/table.md`
+- `plans/playtest-september/review/prompt-ui.md`
 
 ## Root cause
 
-The compact chain rail cleared its hover target, discard rows could not supply an inspector target, and large prompt affordances were rendered as an unfiltered chip row. A plugin-supplied `x` hotkey also remained active for a no answer.
+Trash taps selected an inspector target, but phones have no inspector rectangle.
+The full-screen trash sheet therefore showed no preview. Its rows also lacked
+buttons for the plugin's already-offered card actions.
 
 ## Result
 
-Chain and discard browsing now drive a visibility-checked inspector preview. Public discard stays limited to declared discard zones and uses the accepted face visibility. Large prompt options use a searchable selector backed only by the existing affordances. Yes and no map to `1` and `2`; `x` no longer fires a no answer.
+Trash rows are touch-sized inspection buttons. On phones, the selected row shows
+its image inline, bounded by the available width and viewport height. Image
+lookup requires a public discard zone and a revealed, non-hidden face, for either
+seat. Missing art shows an explicit unavailable label.
 
-The follow-up groups inspector inputs in one `SystemParam`, gives an explicit
-chain or pile hover priority over stale selected cards unless an inspector pin
-is active, and adds counted trash buttons while a prompt is open. The selector
-now includes enabled card and non-card prompt options. Its matching uses the
-public visible card name plus matching catalog group names, tags, and rules
-text; The List's offered tag labels remain the authoritative selectable list.
-Yes/no prompt hotkeys are normalized in Kai so dispatch, visual labels,
-keyboard claiming, cancel detection, and strip digit handling all use `1`/`2`.
-Selector metadata terms are cached per prompt and catalog generation, and are
-only built after a non-empty search. Card options may match public catalog tags
-and rules text; hidden card faces contribute only the face-down label.
+Separate row buttons expose shown, enabled plain card affordances, including
+Reflow or prompt answers when offered. Buttons use `hud::Sender` with the original
+affordance; no moves or request bytes are manufactured. Hidden, disabled,
+other-card, protocol-only and menu-only options are excluded. Another seat's
+prompt and ended sessions suppress row actions but not inspection.
 
-## Tests
+The system has fourteen parameters, including the existing HUD art and sender
+SystemParams. No inspector, rules, networking, art-loader, dependency, lockfile,
+ABI or version changes.
 
-- `cargo fmt --check`
-- `git diff --check`
-- `CARGO_TARGET_DIR=/home/rae/atlas/orgs/abysl/projects/agni/kai/target CARGO_BUILD_JOBS=3 CARGO_PROFILE_DEV_DEBUG=0 CARGO_INCREMENTAL=0 cargo test --locked --lib table::plugin_ui::tests --no-fail-fast` is compiling the cold Bevy graph at the time of this summary.
+## Tests and checks
+
+- Added helper tests for public revealed previews for both seats, concealed faces
+  and private-zone rejection, enabled/offered action filtering and unchanged
+  payloads, prompt ownership, and portrait/landscape preview bounds.
+- `rustfmt --edition 2021 --check src/table/ui.rs` and `git diff --check` pass.
+- Attempted one offline wasm check with main's cache, session `21549`. It began
+  recompiling host-side dependencies, so it was stopped (exit 143) before reaching
+  Kai to avoid a cold build alongside main's ongoing native build. No check or
+  test session remains active from this follow-up. No native build was started.
+
+Command, run from the isolated worktree:
+
+```sh
+env PATH=/nix/store/dibkflwsv77qvhxginzph0yhbfivva59-rust-stable-1.98.0-1.98.0/bin:$PATH CARGO_TARGET_DIR=/tmp/kai-dusk-rose.adTLQw/wasm-target CARGO_BUILD_JOBS=3 CARGO_PROFILE_DEV_DEBUG=0 CARGO_INCREMENTAL=0 cargo check --locked --offline --lib --target wasm32-unknown-unknown
+```
 
 ## Remaining limitations
 
-The selector does not manufacture choices or inspect hidden faces. Existing felt
-and faceless-card-tray affordances remain available alongside its large-option
-list.
+The new helper tests still need execution in main's unified test run; compilation
+and interactive phone testing are not verified here. Main's separately fixed
+inspector closure remains untouched. Images depend on the existing art cache;
+unoffered actions remain unavailable. This focused follow-up does not alter the
+already-integrated selector, hotkey or chain-preview work.
