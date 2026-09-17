@@ -24,14 +24,10 @@ pub struct PlaymatEntry {
     pub official: bool,
 }
 
-pub const CATALOG: [(&str, &str); 4] = [
+pub const CATALOG: [(&str, &str); 3] = [
     (
         "Violet portrait",
         "https://kai.rae.blue/gateway/blob/8094d4c6f18176c4a02ca12f121cff81f9c7348aa05e4bed0c1480df4514b4f2",
-    ),
-    (
-        "Pride painter",
-        "https://kai.rae.blue/gateway/blob/2e032aeb2e51c2d188d62f3c23ac5d3363374905c3b18ceb141b7f8c1c35bc72",
     ),
     (
         "Moonlit duet",
@@ -54,13 +50,13 @@ pub fn catalog_hash(url: &str) -> Option<&str> {
 pub fn retired_choice(name: &str) -> bool {
     matches!(
         name,
-        "Shurima sands" | "Shadow spire" | "Akali" | "Vi and the Rift"
+        "Shurima sands" | "Shadow spire" | "Akali" | "Vi and the Rift" | "Pride painter"
     )
 }
 
 pub fn artist_credit(url: &str) -> Option<(&'static str, &'static str)> {
-    match CATALOG.iter().position(|(_, source)| *source == url)? {
-        3 => Some(("Clya Lyren", "https://clyalyren.com/")),
+    match CATALOG.iter().find(|(_, source)| *source == url)?.0 {
+        "Snow Moon Ahri" => Some(("Clya Lyren", "https://clyalyren.com/")),
         _ => Some(("bbi", "https://x.com/totatso")),
     }
 }
@@ -550,7 +546,7 @@ pub fn playmat_section(
     ui.horizontal_wrapped(|ui| {
         ui.label("playmat artists:");
         ui.hyperlink_to("Clya Lyren · Ahri", "https://clyalyren.com/");
-        ui.hyperlink_to("bbi · portrait, pride and duet", "https://x.com/totatso");
+        ui.hyperlink_to("bbi · portrait and duet", "https://x.com/totatso");
     });
     ui.horizontal_wrapped(|ui| {
         ui.label("add from link");
@@ -644,14 +640,20 @@ mod tests {
     #[test]
     fn curated_mats_are_content_addressed_and_replace_the_retired_catalog() {
         let library = PlaymatLibrary::default();
-        assert_eq!(library.entries.len(), 4);
+        assert_eq!(library.entries.len(), 3);
         for entry in &library.entries {
             assert!(catalog_hash(&entry.url).is_some());
             assert!(artist_credit(&entry.url).is_some());
             assert!(!retired_choice(&entry.name));
             assert!(shareable(&entry.name, &library).is_some());
         }
-        for name in ["Shurima sands", "Shadow spire", "Akali", "Vi and the Rift"] {
+        for name in [
+            "Shurima sands",
+            "Shadow spire",
+            "Akali",
+            "Vi and the Rift",
+            "Pride painter",
+        ] {
             assert!(library.entry(name).is_none());
             assert_eq!(
                 Tuning {
@@ -674,7 +676,7 @@ mod tests {
         );
         assert!(catalog_hash("https://example.org/art.png").is_none());
         assert_eq!(
-            artist_credit(CATALOG[3].1),
+            artist_credit(CATALOG[2].1),
             Some(("Clya Lyren", "https://clyalyren.com/"))
         );
         assert_eq!(
