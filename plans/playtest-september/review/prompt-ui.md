@@ -33,7 +33,8 @@ and rules text; hidden card faces contribute only the face-down label.
 
 - `cargo fmt --check`
 - `git diff --check`
-- `CARGO_TARGET_DIR=/home/rae/atlas/orgs/abysl/projects/agni/kai/target CARGO_BUILD_JOBS=3 CARGO_PROFILE_DEV_DEBUG=0 CARGO_INCREMENTAL=0 cargo test --locked --lib table::plugin_ui::tests --no-fail-fast` is compiling the cold Bevy graph at the time of this summary.
+- Native tests require the renderer dependency graph to finish compiling; the
+  release integration runs the full library suite, including the prompt tests.
 
 ## Remaining limitations
 
