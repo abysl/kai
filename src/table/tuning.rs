@@ -165,6 +165,9 @@ impl Tuning {
     }
 
     pub fn normalized(mut self) -> Self {
+        if super::playmat::retired_choice(&self.playmat) {
+            self.playmat.clear();
+        }
         if !(dim::ZOOM_MIN..=dim::ZOOM_MAX).contains(&self.zoom)
             || self.view_version < dim::VIEW_VERSION
         {

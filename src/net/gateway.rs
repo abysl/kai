@@ -99,25 +99,10 @@ static STATUS_LINE: Mutex<String> = Mutex::new(String::new());
 static ART: Mutex<BTreeMap<String, Vec<u8>>> = Mutex::new(BTreeMap::new());
 static FETCHING: Mutex<BTreeSet<String>> = Mutex::new(BTreeSet::new());
 static ARRIVALS: Mutex<Vec<(String, Vec<u8>)>> = Mutex::new(Vec::new());
-static BACKS: Mutex<BTreeMap<&'static str, Option<Vec<u8>>>> = Mutex::new(BTreeMap::new());
 
-pub fn bundled_back(game: crate::render::art::ArtGame) -> Option<Vec<u8>> {
-    let asset = game.back_asset();
-    let mut backs = BACKS.lock();
-    match backs.get(asset) {
-        Some(Some(bytes)) => Some(bytes.clone()),
-        Some(None) => None,
-        None => {
-            backs.insert(asset, None);
-            drop(backs);
-            wasm_bindgen_futures::spawn_local(async move {
-                if let Ok(bytes) = fetch_bytes(&format!("./{asset}")).await {
-                    BACKS.lock().insert(asset, Some(bytes));
-                }
-            });
-            None
-        }
-    }
+pub fn request_back(game: crate::render::art::ArtGame, now: f64) {
+    let url = format!("https://kai.rae.blue/gateway/blob/{}", game.back_hash());
+    request_remote_art(game.back_name(), &url, Some(game.back_hash()), now);
 }
 
 fn set_status(line: String) {
@@ -276,15 +261,29 @@ pub const ASSET_RETRY_SECS: f64 = 3.0;
 pub const ASSET_GIVE_UP_SECS: f64 = 90.0;
 
 pub fn request_token_art(name: &str, url: &'static str, now: f64) {
-    let key = format!("token/{name}");
+    request_remote_art(name, url, None, now);
+}
+
+pub fn request_remote_art(name: &str, url: &str, expected: Option<&str>, now: f64) {
+    let key = format!("remote/{name}");
     if ASSET_RETRY.lock().get(&key).is_some_and(|due| now < *due)
         || !ASSET_BUSY.lock().insert(key.clone())
     {
         return;
     }
     let name = name.to_string();
+    let url = url.to_string();
+    let expected = expected.map(str::to_string);
     wasm_bindgen_futures::spawn_local(async move {
-        match fetch_bytes(url).await {
+        let outcome = n0_future::time::timeout(std::time::Duration::from_secs(20), async {
+            let bytes = fetch_bytes(&url).await.map_err(|error| error.to_string())?;
+            crate::render::art::validate_download(&bytes, expected.as_deref())?;
+            Ok::<_, String>(bytes)
+        })
+        .await
+        .map_err(|_| "artwork download timed out".to_string())
+        .and_then(|result| result);
+        match outcome {
             Ok(bytes) => {
                 ASSET_NAMES.lock().insert(key.clone(), name);
                 ARRIVALS.lock().push((key.clone(), bytes));
@@ -292,7 +291,8 @@ pub fn request_token_art(name: &str, url: &'static str, now: f64) {
                     .lock()
                     .insert(key.clone(), now + ASSET_GIVE_UP_SECS);
             }
-            Err(_) => {
+            Err(error) => {
+                warn!("art {name}: {error}");
                 ASSET_RETRY
                     .lock()
                     .insert(key.clone(), now + ASSET_RETRY_SECS);
@@ -307,6 +307,10 @@ pub fn asset_key(journal: &str, name: &str) -> String {
 }
 
 pub fn request_asset(journal: &str, name: &str, url: &str, now: f64) {
+    if let Some(hash) = crate::table::playmat::catalog_hash(url) {
+        request_remote_art(name, url, Some(hash), now);
+        return;
+    }
     let Some(base) = gateway_base() else {
         return;
     };

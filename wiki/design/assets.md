@@ -21,3 +21,28 @@ assumption that contributors have access to a particular hosted service.
 Test missing art, late arrival, repeated requests, invalid bytes, and a peer
 disconnect during loading. The table should remain usable with placeholders.
 Do not commit downloaded card images or local asset journals.
+
+## Card backs and curated playmats
+
+Card backs are runtime content, not files bundled with the application. The
+browser requests the game's pinned content hash from the public content
+service, without waiting for gateway discovery. Both Riftbound and Magic
+use this path. Native clients use their local/peer cache and the upstream source.
+Native artwork workers construct network deadlines inside the node runtime;
+constructing a Tokio timer on their plain worker thread panics and strands the
+art queue. Request card backs before faces so large decks do not delay them.
+
+Curated playmat URLs identify immutable blobs. Browser downloads verify the
+expected hash and decode the image before publishing it to the art cache.
+Failures, invalid responses and timeouts remain retryable; a failed request
+must not permanently mark the image as loaded. The download deadline is 20
+seconds, with a three-second retry interval. Hidden cards and opponent hand
+backs are refreshed when the art cache changes, even on an idle table.
+
+Opening settings loads library previews without requiring a playmat selection.
+The four former built-in playmats are no longer in the catalog; saved selections
+of those names reset to felt. Other custom selections remain unchanged.
+
+Artwork permissions are separate from the source-code license. See the
+[artwork inventory](../artwork.md). Keep original files and embedded artist
+credits intact when publishing content; only metadata belongs in this repository.

@@ -9,7 +9,7 @@ pub const ART_PREFIX: &str = "playmat:";
 pub const CARD_PREFIX: &str = "card:";
 pub const LIBRARY_FILE: &str = "playmats.json";
 pub const WEB_PLAYMAT_NOTE: &str =
-    "the browser asks its gateway for playmats: a mat any node holds arrives from the mesh, a new link is fetched once by the gateway";
+    "curated art is loaded from the content service; custom links use the gateway's supported sources";
 pub const JOURNAL: &str = "playmats";
 const THUMB: egui::Vec2 = egui::vec2(120.0, 62.0);
 const CAPTION_H: f32 = 22.0;
@@ -26,22 +26,44 @@ pub struct PlaymatEntry {
 
 pub const CATALOG: [(&str, &str); 4] = [
     (
-        "Shurima sands",
-        "https://cmsassets.rgpub.io/sanity/images/dsfx7636/news_live/59278d6448af8e90070018992e7a204e0e931464-1440x810.jpg?w=2048&fm=jpg&q=85",
+        "Violet portrait",
+        "https://kai.rae.blue/gateway/blob/8094d4c6f18176c4a02ca12f121cff81f9c7348aa05e4bed0c1480df4514b4f2",
     ),
     (
-        "Shadow spire",
-        "https://cmsassets.rgpub.io/sanity/images/dsfx7636/news_live/9ec9e1121896e42aff94670e1a26320f45b8c01d-1440x810.jpg?w=2048&fm=jpg&q=85",
+        "Pride painter",
+        "https://kai.rae.blue/gateway/blob/2e032aeb2e51c2d188d62f3c23ac5d3363374905c3b18ceb141b7f8c1c35bc72",
     ),
     (
-        "Akali",
-        "https://cmsassets.rgpub.io/sanity/images/dsfx7636/news_live/91a720561b6cd9c649a9148782f34d96e78cd894-4320x2430.jpg?w=2048&fm=jpg&q=85",
+        "Moonlit duet",
+        "https://kai.rae.blue/gateway/blob/57399207905ee6819eb8ce447eed8bb05c2740f234775b35c031ea3d04540518",
     ),
     (
-        "Vi and the Rift",
-        "https://cmsassets.rgpub.io/sanity/images/dsfx7636/news_live/9e26afe304d2c40664b119a9da0ef82cff692f54-3840x2160.png?w=2048&fm=jpg&q=85",
+        "Snow Moon Ahri",
+        "https://kai.rae.blue/gateway/blob/8b3e0e6aeb059a3731a3b58a1fdac0dfeaf328cf2f97840d63d6bc6e937a16ec",
     ),
 ];
+
+pub fn catalog_hash(url: &str) -> Option<&str> {
+    CATALOG
+        .iter()
+        .any(|(_, source)| *source == url)
+        .then(|| url.rsplit('/').next())
+        .flatten()
+}
+
+pub fn retired_choice(name: &str) -> bool {
+    matches!(
+        name,
+        "Shurima sands" | "Shadow spire" | "Akali" | "Vi and the Rift"
+    )
+}
+
+pub fn artist_credit(url: &str) -> Option<(&'static str, &'static str)> {
+    match CATALOG.iter().position(|(_, source)| *source == url)? {
+        3 => Some(("Clya Lyren", "https://clyalyren.com/")),
+        _ => Some(("bbi", "https://x.com/totatso")),
+    }
+}
 
 #[derive(Resource, Debug, Clone, PartialEq, Eq)]
 pub struct PlaymatLibrary {
@@ -320,20 +342,19 @@ pub fn ensure_fetched(
     tuning: Res<Tuning>,
     library: Res<PlaymatLibrary>,
     art: Res<ArtCache>,
+    settings: Res<crate::settings::Settings>,
     time: Res<bevy::prelude::Time>,
 ) {
-    let choice = tuning.playmat.as_str();
-    if choice.is_empty() || choice.starts_with(CARD_PREFIX) {
-        return;
+    for entry in library
+        .entries
+        .iter()
+        .filter(|entry| settings.open || entry.name == tuning.playmat)
+    {
+        let name = art_name(&entry.name);
+        if !art.has(&name) {
+            crate::net::gateway::request_asset(JOURNAL, &name, &entry.url, time.elapsed_secs_f64());
+        }
     }
-    let Some(entry) = library.entry(choice) else {
-        return;
-    };
-    let name = art_name(&entry.name);
-    if art.has(&name) {
-        return;
-    }
-    crate::net::gateway::request_asset(JOURNAL, &name, &entry.url, time.elapsed_secs_f64());
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -362,22 +383,23 @@ pub fn fetch_roster_mats(
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-pub fn ensure_fetched(tuning: Res<Tuning>, library: Res<PlaymatLibrary>, art: Res<ArtCache>) {
-    if !tuning.is_changed() && !library.is_changed() {
+pub fn ensure_fetched(
+    tuning: Res<Tuning>,
+    library: Res<PlaymatLibrary>,
+    art: Res<ArtCache>,
+    settings: Res<crate::settings::Settings>,
+) {
+    if !tuning.is_changed() && !library.is_changed() && !settings.is_changed() {
         return;
     }
-    let choice = tuning.playmat.as_str();
-    if choice.is_empty() || choice.starts_with(CARD_PREFIX) {
-        return;
-    }
-    let Some(entry) = library.entry(choice) else {
-        return;
-    };
-    let name = art_name(&entry.name);
-    if art.has(&name) {
-        return;
-    }
-    crate::render::art::enqueue([ArtRequest::playmat(&name, &entry.url)]);
+    crate::render::art::enqueue(
+        library
+            .entries
+            .iter()
+            .filter(|entry| settings.open || entry.name == tuning.playmat)
+            .filter(|entry| !art.has(&art_name(&entry.name)))
+            .map(|entry| ArtRequest::playmat(art_name(&entry.name), &entry.url)),
+    );
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -495,8 +517,12 @@ pub fn playmat_section(
                 " · not fetched"
             };
             let caption = format!("{}{status}", entry.name);
+            let hover = match artist_credit(&entry.url) {
+                Some((artist, _)) => format!("{caption}\nArt by {artist}"),
+                None => caption.clone(),
+            };
             if swatch(ui, thumbs.ids.get(&name).copied(), selected, &caption)
-                .on_hover_text(&caption)
+                .on_hover_text(&hover)
                 .clicked()
             {
                 tuning.playmat = entry.name.clone();
@@ -520,6 +546,11 @@ pub fn playmat_section(
                 tuning.playmat = choice.clone();
             }
         }
+    });
+    ui.horizontal_wrapped(|ui| {
+        ui.label("playmat artists:");
+        ui.hyperlink_to("Clya Lyren · Ahri", "https://clyalyren.com/");
+        ui.hyperlink_to("bbi · portrait, pride and duet", "https://x.com/totatso");
     });
     ui.horizontal_wrapped(|ui| {
         ui.label("add from link");
@@ -586,7 +617,7 @@ mod tests {
         assert!(library
             .add("Ionia Grove 4k", "https://example.org/x.png")
             .is_err());
-        assert!(!library.remove("Akali"));
+        assert!(!library.remove(CATALOG[0].0));
         assert!(library.remove("Ionia Grove 4k"));
         assert_eq!(library.custom().count(), 0);
         library.merge_saved(vec![PlaymatEntry {
@@ -608,5 +639,48 @@ mod tests {
         assert_eq!(label_of(""), "felt");
         assert_eq!(label_of("card:Bandle Tree"), "Bandle Tree (battlefield)");
         assert_eq!(name_from_link("https://x/y/"), "custom playmat");
+    }
+
+    #[test]
+    fn curated_mats_are_content_addressed_and_replace_the_retired_catalog() {
+        let library = PlaymatLibrary::default();
+        assert_eq!(library.entries.len(), 4);
+        for entry in &library.entries {
+            assert!(catalog_hash(&entry.url).is_some());
+            assert!(artist_credit(&entry.url).is_some());
+            assert!(!retired_choice(&entry.name));
+            assert!(shareable(&entry.name, &library).is_some());
+        }
+        for name in ["Shurima sands", "Shadow spire", "Akali", "Vi and the Rift"] {
+            assert!(library.entry(name).is_none());
+            assert_eq!(
+                Tuning {
+                    playmat: name.into(),
+                    ..default()
+                }
+                .normalized()
+                .playmat,
+                FELT
+            );
+        }
+        assert_eq!(
+            Tuning {
+                playmat: "my custom mat".into(),
+                ..default()
+            }
+            .normalized()
+            .playmat,
+            "my custom mat"
+        );
+        assert!(catalog_hash("https://example.org/art.png").is_none());
+        assert_eq!(
+            artist_credit(CATALOG[3].1),
+            Some(("Clya Lyren", "https://clyalyren.com/"))
+        );
+        assert_eq!(
+            artist_credit(CATALOG[0].1),
+            Some(("bbi", "https://x.com/totatso"))
+        );
+        assert_eq!(artist_credit("https://example.org/art.png"), None);
     }
 }

@@ -34,10 +34,10 @@ impl ArtGame {
         }
     }
 
-    pub fn back_asset(self) -> &'static str {
+    pub fn back_hash(self) -> &'static str {
         match self {
-            Self::Riftbound => "assets/art/riftbound-back.webp",
-            Self::Mtg => "assets/art/mtg-back.jpg",
+            Self::Riftbound => "9cea33d1205dccedbfd4eccc31aeb77c0fe65f8a0a9e5d5fd51b9bd06605e5de",
+            Self::Mtg => "f089735677a17dc62cbaecaf46719ac2f2f3a88832d01308d8721b4c1be37595",
         }
     }
 }
@@ -294,6 +294,13 @@ pub fn decode_image(bytes: &[u8]) -> Result<Image, String> {
     .map_err(|error| error.to_string())
 }
 
+pub fn validate_download(bytes: &[u8], expected: Option<&str>) -> Result<(), String> {
+    if expected.is_some_and(|hash| spirit_core::BlobHash::of(bytes).to_string() != hash) {
+        return Err("artwork does not match its content address".into());
+    }
+    decode_image(bytes).map(|_| ())
+}
+
 pub fn missing_from_table(
     table: &Table,
     game: ArtGame,
@@ -485,17 +492,13 @@ mod worker {
                 let (_, bytes) =
                     agni_importers::art::fetch_one(&store, journal, &agent, &request.name, url)
                         .map_err(|error| error.to_string())?;
+                super::validate_download(&bytes, crate::table::playmat::catalog_hash(url))?;
                 if !from_mesh {
                     super::assets::republish(&self.dir);
                 }
                 return Ok(Some(bytes));
             }
             if request.is_back() {
-                if let Some(bytes) =
-                    crate::engine::modules::bundled_asset(request.game.back_asset())
-                {
-                    return Ok(Some(bytes));
-                }
                 let store =
                     spirit_core::BlobStore::open(&self.dir).map_err(|error| error.to_string())?;
                 let journal = super::assets::BACKS_JOURNAL;
@@ -679,10 +682,16 @@ pub fn queue_visible_art(
     let Some(game) = crate::net::game_of_zones(&mirror.view.zones).art_game() else {
         return;
     };
-    let mut wanted = missing_from_table(&table.0, game, &cache, &token_art_ids(&tokens.0));
+    let mut wanted = Vec::new();
     if !cache.has(game.back_name()) {
         wanted.push(ArtRequest::back(game));
     }
+    wanted.extend(missing_from_table(
+        &table.0,
+        game,
+        &cache,
+        &token_art_ids(&tokens.0),
+    ));
     if wanted.is_empty() {
         return;
     }
@@ -703,16 +712,16 @@ pub fn queue_visible_art(
         return;
     }
     *next_poll = now + 0.5;
-    if crate::net::game_of_zones(&mirror.view.zones).art_game() != Some(ArtGame::Riftbound) {
+    let Some(game) = crate::net::game_of_zones(&mirror.view.zones).art_game() else {
+        return;
+    };
+    if !cache.has(game.back_name()) {
+        crate::net::gateway::request_back(game, now);
+    }
+    if game != ArtGame::Riftbound {
         return;
     }
     let ids = token_art_ids(&tokens.0);
-    let game = ArtGame::Riftbound;
-    if !cache.has(game.back_name()) {
-        if let Some(bytes) = crate::net::gateway::bundled_back(game) {
-            cache.insert(game.back_name(), bytes);
-        }
-    }
     let landed: Vec<(String, Vec<u8>)> = missing_from_table(&table.0, game, &cache, &ids)
         .into_iter()
         .filter_map(|request| {
@@ -735,21 +744,27 @@ pub fn queue_visible_art(
 }
 
 #[cfg(all(test, not(target_arch = "wasm32")))]
-mod bundled_back_tests {
-    use super::ArtGame;
+mod runtime_art_tests {
+    use super::*;
 
     #[test]
-    fn both_card_backs_ship_in_the_bundle() {
+    fn both_card_backs_have_content_addresses_without_bundled_art() {
         for game in [ArtGame::Riftbound, ArtGame::Mtg] {
-            let bytes = crate::engine::modules::bundled_asset(game.back_asset())
-                .unwrap_or_else(|| panic!("{} is bundled", game.back_asset()));
-            assert!(bytes.len() > 10_000);
-            assert!(
-                image::load_from_memory(&bytes).is_ok(),
-                "{} decodes",
-                game.back_asset()
-            );
+            assert!(spirit_core::BlobHash::parse(game.back_hash()).is_some());
+            assert!(game.back_url().starts_with("https://"));
         }
+    }
+
+    #[test]
+    fn invalid_responses_and_wrong_content_never_become_art() {
+        assert!(validate_download(b"<html>not found</html>", None).is_err());
+        let image = image::DynamicImage::new_rgb8(2, 3);
+        let mut bytes = std::io::Cursor::new(Vec::new());
+        image.write_to(&mut bytes, image::ImageFormat::Png).unwrap();
+        let bytes = bytes.into_inner();
+        let hash = spirit_core::BlobHash::of(&bytes).to_string();
+        assert!(validate_download(&bytes, Some(&hash)).is_ok());
+        assert!(validate_download(&bytes, Some(&"0".repeat(64))).is_err());
     }
 }
 
@@ -764,6 +779,13 @@ pub mod assets {
     pub const BACKS_JOURNAL: &str = "card-backs";
     pub const INDEX_WAIT: Duration = Duration::from_secs(4);
     pub const BLOB_WAIT: Duration = Duration::from_secs(12);
+
+    async fn with_deadline<F: std::future::Future>(
+        duration: Duration,
+        future: F,
+    ) -> Result<F::Output, tokio::time::error::Elapsed> {
+        tokio::time::timeout(duration, future).await
+    }
 
     pub fn index_entries(
         dir: &Path,
@@ -808,7 +830,7 @@ pub mod assets {
             return false;
         };
         for (peer, manifest) in node.mesh.missing_asset_indexes(store) {
-            let pulled = node.block_on(tokio::time::timeout(
+            let pulled = node.block_on(with_deadline(
                 INDEX_WAIT,
                 spirit_node::mesh::fetch_blob(
                     &node.mesh,
@@ -826,7 +848,7 @@ pub mod assets {
         let hash = match node.mesh.find_asset(store, &key) {
             Found::Held(hash) => hash,
             Found::Provider(hash, peer) => {
-                let pulled = node.block_on(tokio::time::timeout(
+                let pulled = node.block_on(with_deadline(
                     BLOB_WAIT,
                     spirit_node::mesh::fetch_blob(
                         &node.mesh,
@@ -860,6 +882,29 @@ pub mod assets {
         bevy::log::info!(target: "kai::art", "{key} came from the mesh");
         republish(store.root());
         true
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn worker_deadlines_are_created_only_after_entering_the_runtime() {
+            let runtime = tokio::runtime::Builder::new_multi_thread()
+                .worker_threads(1)
+                .enable_time()
+                .build()
+                .unwrap();
+            let handle = runtime.handle().clone();
+            std::thread::spawn(move || {
+                let ready = with_deadline(Duration::from_secs(1), std::future::ready(7));
+                assert_eq!(handle.block_on(ready).unwrap(), 7);
+                let blocked = with_deadline(Duration::from_millis(1), std::future::pending::<()>());
+                assert!(handle.block_on(blocked).is_err());
+            })
+            .join()
+            .unwrap();
+        }
     }
 }
 
