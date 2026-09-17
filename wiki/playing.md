@@ -178,6 +178,11 @@ After an Empower ability resolves, the Might badge and inspector show the
 rule-calculated value. Steel Paws goes from 0 to 7 without an additional manual
 counter change.
 
+Mournful Witness now triggers its Empower ability when its combat ends.
+Reflections created by LeBlanc, Mirror Image, and Keeper of Masks take the
+copied unit's face, printed Might, and abilities while remaining tokens.
+Temporary still applies when the creating effect grants it.
+
 Token images load at runtime. When the content catalog lacks a token image,
 Kai fetches it from Piltover Archive's public image CDN. No card artwork is
 bundled in this source release; an internet connection is needed on first load.

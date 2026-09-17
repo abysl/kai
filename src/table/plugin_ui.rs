@@ -2710,8 +2710,9 @@ mod strip_tests {
 
     #[test]
     fn card_choices_search_public_catalog_tags_and_rules_without_hidden_faces() {
+        use agni_core::CardFace;
         use agni_importers::riftbound::catalog::{CardKind, CatalogCard};
-        use agni_sim::wire::{ZoneDecl, ZoneVisibility};
+        use agni_sim::wire::ZoneVisibility;
 
         let catalog = crate::deck::catalog::Catalog::from_cards(
             vec![CatalogCard {
@@ -2739,13 +2740,12 @@ mod strip_tests {
             affordances: vec![offer("{card 2}", None, Some(hidden.0))],
             ..Default::default()
         };
+        let mut zone = agni_riftbound::zone_table().remove(0);
+        zone.id = 9;
+        zone.visibility = ZoneVisibility::All;
         let mirror = Mirror {
             view: TableView {
-                zones: vec![ZoneDecl {
-                    id: 9,
-                    visibility: ZoneVisibility::All,
-                    ..Default::default()
-                }],
+                zones: vec![zone],
                 ..Default::default()
             },
             ..Default::default()
