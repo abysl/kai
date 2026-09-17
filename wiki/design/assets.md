@@ -46,6 +46,9 @@ While offline or waiting, a code-generated patterned back keeps hidden cards
 recognizable without bundling game artwork. It never marks the requested image
 as loaded. Opponent hand materials track the image identity, not just whether
 a texture exists, so the real back replaces the placeholder when it arrives.
+Replacing an artless card entity also invalidates card placement. The layout
+system checks newly added card views even when every table resource is unchanged,
+so late artwork cannot leave a deck at the dealing origin until the next action.
 
 Opening settings loads library previews without requiring a playmat selection.
 The four former built-in playmats are no longer in the catalog; saved selections

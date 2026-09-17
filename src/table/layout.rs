@@ -306,7 +306,7 @@ pub(super) fn layout_cards(
     extent: Res<camera::Extent>,
     menu: Option<Res<crate::menu::Menu>>,
     mut phone_hand: PhoneHand,
-    mut cards: Query<(Entity, &CardView, &mut Slot, &mut Visibility)>,
+    mut cards: Query<(Entity, Ref<CardView>, &mut Slot, &mut Visibility)>,
 ) {
     let phone = phone_hand.viewport.class.is_phone();
     if phone_hand.plane.phone != phone {
@@ -331,6 +331,7 @@ pub(super) fn layout_cards(
         && !drawer_scroll.is_changed()
         && !viewport.is_changed()
         && !menu.as_ref().is_some_and(|menu| menu.is_changed())
+        && !cards.iter().any(|(_, card, _, _)| card.is_added())
     {
         return;
     }

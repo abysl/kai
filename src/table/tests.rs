@@ -2,6 +2,60 @@ use super::*;
 use std::f32::consts::PI;
 
 #[test]
+fn replacement_card_entities_are_laid_out_without_a_game_state_change() {
+    let mut app = App::new();
+    app.init_resource::<GameTable>()
+        .init_resource::<Tuning>()
+        .init_resource::<DealGeneration>()
+        .init_resource::<HandScroll>()
+        .init_resource::<ViewSeat>()
+        .init_resource::<MySeat>()
+        .init_resource::<PlayerCount>()
+        .init_resource::<SessionInfo>()
+        .init_resource::<Held>()
+        .init_resource::<Mirror>()
+        .init_resource::<camera::Extent>()
+        .init_resource::<crate::viewport::Viewport>()
+        .init_resource::<hud::Hud>()
+        .init_resource::<layout::HandDrawer>()
+        .init_resource::<layout::DrawerScroll>()
+        .init_resource::<layout::HandPlane>()
+        .add_systems(Update, layout::layout_cards);
+    app.world_mut().resource_mut::<Mirror>().view.zones = agni_riftbound::zone_table();
+    let card = app.world_mut().resource_mut::<GameTable>().add(
+        PlayerId(0),
+        Zone::Plugin(agni_riftbound::ZONE_MAIN_DECK),
+        "",
+        [0; 3],
+    );
+    let unplaced = Slot {
+        position: Vec3::splat(100.0),
+        facing: Facing::Camera,
+        yaw: 0.0,
+        rot: 0.0,
+    };
+    let original = app
+        .world_mut()
+        .spawn((CardView(card), unplaced, Visibility::Inherited))
+        .id();
+    app.update();
+    let expected = *app.world().get::<Slot>(original).unwrap();
+    assert_ne!(expected, unplaced);
+    app.update();
+    app.world_mut().despawn(original);
+    let replacement = app
+        .world_mut()
+        .spawn((CardView(card), unplaced, Visibility::Hidden))
+        .id();
+    app.update();
+    assert_eq!(*app.world().get::<Slot>(replacement).unwrap(), expected);
+    assert_eq!(
+        *app.world().get::<Visibility>(replacement).unwrap(),
+        Visibility::Inherited
+    );
+}
+
+#[test]
 fn the_render_mirror_follows_folded_deltas() {
     use agni_sim::log::{fold_entry, LogAction, LogEntry, LogState, TableConfig};
     use agni_sim::view::{apply_deltas, diff_views, table_view};
