@@ -75,7 +75,7 @@ pub fn rows(
                 item: u16::try_from(stacked.len()).unwrap_or(u16::MAX),
                 card: Some(card.id.0),
                 seat: card.seat.0,
-                name: card.face.name.clone(),
+                name: plugin_ui::card_label(table, &mirror.view, me, card.id.0),
             });
         }
     }
@@ -202,9 +202,12 @@ pub(super) fn chain_ui(
         };
         let texture = match cards.iter().find(|(view, _)| view.0 .0 == card) {
             Some((_, on_table)) => Some(art.registry.texture(&mut contexts, &on_table.0)),
-            None => table
-                .get(CardId(card))
-                .and_then(|held| art.texture(&mut contexts, &held.face.name)),
+            None => table.get(CardId(card)).and_then(|held| {
+                let face = sync::drawn_face_in(held, &mirror.view);
+                (!face.face.is_hidden())
+                    .then(|| art.texture(&mut contexts, &face.face.name))
+                    .flatten()
+            }),
         };
         if let Some(texture) = texture {
             textures.push((card, texture));
@@ -259,6 +262,9 @@ pub(super) fn chain_ui(
                                     response
                                 }
                             };
+                            if thumb.hovered() {
+                                hover = row.card.map(CardId);
+                            }
                             let color = seats.label(PlayerId(row.seat)).1;
                             ui.painter().rect_stroke(
                                 thumb.rect,
@@ -301,18 +307,23 @@ pub(super) fn chain_ui(
                     ui.horizontal(|ui| {
                         ui.set_min_height(CHAIN_ROW_H - 8.0);
                         let size = egui::vec2(THUMB_W, THUMB_H);
-                        match row
+                        let thumb = match row
                             .card
                             .and_then(|card| textures.iter().find(|(id, _)| *id == card))
                         {
                             Some((_, texture)) => {
-                                ui.image(egui::load::SizedTexture::new(*texture, size));
+                                ui.image(egui::load::SizedTexture::new(*texture, size))
                             }
                             None => {
-                                let (thumb, _) = ui.allocate_exact_size(size, egui::Sense::hover());
+                                let (thumb, response) =
+                                    ui.allocate_exact_size(size, egui::Sense::hover());
                                 ui.painter()
                                     .rect_filled(thumb, 3.0, egui::Color32::from_gray(58));
+                                response
                             }
+                        };
+                        if thumb.hovered() {
+                            hover = row.card.map(CardId);
                         }
                         colors::swatch(ui, color, 10.0, tuning.colour_blind);
                         let text = if index == 0 {
@@ -347,8 +358,8 @@ pub(super) fn chain_ui(
         if *chain_rects != next {
             *chain_rects = next;
         }
-        if chain_hover.0.is_some() {
-            chain_hover.0 = None;
+        if chain_hover.0 != hover {
+            chain_hover.0 = hover;
         }
         return Ok(());
     }

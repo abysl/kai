@@ -36,6 +36,14 @@ Hidden cards require checks from both the owner and other seats. Hiding one
 image is insufficient if labels, previews, hover state, or a stale entity still
 reveal the face.
 
+Discard labels open a browse sheet for either visible player's public discard.
+Hovering a listed card or a chain thumbnail drives the inspector only when the
+accepted view permits its face. Large prompt option sets open a searchable
+selector over the existing affordances; its choices still emit those
+affordances and never synthesize an intent.
+Yes/no prompts reserve `1` for yes and `2` for no, regardless of a game's
+legacy cancel hotkey.
+
 ## Forced answers and ordered prompts
 
 Completed recycling prompts have no remaining card choice. When the only

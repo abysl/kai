@@ -386,8 +386,22 @@ pub fn kai_key(claimed: &ClaimedKeys, key: KeyCode) -> bool {
 }
 
 pub fn pressed_index(view: &PluginView, pressed: &dyn Fn(KeyCode) -> bool) -> Option<usize> {
+    if view.prompt.is_some() {
+        let yes_no = [(KeyCode::Digit1, "yes"), (KeyCode::Digit2, "no")];
+        if let Some((_, label)) = yes_no.into_iter().find(|(key, _)| pressed(*key)) {
+            if let Some(index) = view.affordances.iter().position(|affordance| {
+                affordance.enabled
+                    && affordance.card.is_none()
+                    && affordance.label.eq_ignore_ascii_case(label)
+            }) {
+                return Some(index);
+            }
+        }
+    }
     view.affordances.iter().position(|affordance| {
         affordance.enabled
+            && !(view.prompt.is_some()
+                && matches!(affordance.label.to_ascii_lowercase().as_str(), "yes" | "no"))
             && affordance
                 .hotkey
                 .as_deref()
@@ -600,6 +614,116 @@ pub fn primary_label(view: &PluginView, me: u8) -> Option<String> {
 pub const THINKING_SECS: f64 = 60.0;
 pub const TRAY_FACE_W: f32 = 120.0;
 pub const TRAY_FACE_H: f32 = 168.0;
+pub const SELECTOR_MIN_OPTIONS: usize = 10;
+
+#[derive(Resource, Debug, Default, Clone, PartialEq, Eq)]
+pub struct PromptSelector {
+    pub search: String,
+    pub key: Option<String>,
+    pub open: bool,
+}
+
+pub fn selector_options(view: &PluginView, me: u8) -> Vec<usize> {
+    let mine = view
+        .prompt
+        .as_ref()
+        .is_some_and(|summary| summary.seat == me);
+    mine.then(|| {
+        strip_chips(view)
+            .into_iter()
+            .filter(|index| view.affordances[*index].card.is_none())
+            .collect()
+    })
+    .filter(|options: &Vec<usize>| options.len() >= SELECTOR_MIN_OPTIONS)
+    .unwrap_or_default()
+}
+
+pub fn selector_matches(label: &str, search: &str) -> bool {
+    search
+        .split_whitespace()
+        .all(|word| label.to_lowercase().contains(&word.to_lowercase()))
+}
+
+pub fn selector_key(view: &PluginView, options: &[usize]) -> String {
+    let question = view
+        .prompt
+        .as_ref()
+        .map(|summary| summary.why.as_str())
+        .unwrap_or_default();
+    let labels = options
+        .iter()
+        .filter_map(|index| view.affordances.get(*index))
+        .map(|affordance| affordance.label.as_str())
+        .collect::<Vec<_>>()
+        .join("\u{1f}");
+    format!("{question}\u{1e}{labels}")
+}
+
+pub fn prompt_selector_ui(
+    mut contexts: EguiContexts,
+    hud: Res<super::hud::Hud>,
+    panel: Res<PluginPanel>,
+    my_seat: Res<MySeat>,
+    menu: Res<crate::menu::Menu>,
+    mut selector: ResMut<PromptSelector>,
+    mut sender: super::hud::Sender,
+) -> Result {
+    if !menu.at_table() {
+        selector.key = None;
+        selector.open = false;
+        return Ok(());
+    }
+    let options = selector_options(&panel.view, my_seat.0 .0);
+    if options.is_empty() {
+        selector.key = None;
+        selector.open = false;
+        return Ok(());
+    }
+    let key = selector_key(&panel.view, &options);
+    if selector.key.as_deref() != Some(&key) {
+        selector.key = Some(key);
+        selector.search.clear();
+        selector.open = true;
+    }
+    if !selector.open {
+        return Ok(());
+    }
+    let context = contexts.ctx_mut()?.clone();
+    let mut open = true;
+    let mut picked = None;
+    super::hud::sheet(
+        &context,
+        "prompt selector",
+        hud.0.class,
+        super::hud::Side::Right,
+        &format!("choose · {} options", options.len()),
+        &mut open,
+        |ui| {
+            ui.add(
+                egui::TextEdit::singleline(&mut selector.search)
+                    .hint_text("search choices")
+                    .desired_width(f32::INFINITY),
+            );
+            egui::ScrollArea::vertical()
+                .id_salt("prompt selector options")
+                .max_height(440.0)
+                .show(ui, |ui| {
+                    for index in &options {
+                        let label = answer_label(&panel.view, my_seat.0 .0, *index);
+                        if selector_matches(&label, &selector.search) && ui.button(label).clicked()
+                        {
+                            picked = Some(*index);
+                        }
+                    }
+                });
+        },
+    );
+    selector.open = open;
+    if let Some(index) = picked {
+        sender.fire(&panel.view.affordances[index]);
+    }
+    Ok(())
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StripState {
@@ -967,6 +1091,7 @@ pub fn plugin_ui(
     mut art: super::hud::Art,
     mut tray: ResMut<TrayItems>,
     mut banner: ResMut<super::hud::Banner>,
+    mut selector: ResMut<PromptSelector>,
     shown_cards: Query<(&CardView, &ViewVisibility)>,
     mut waiting_since: Local<Option<(String, f64)>>,
 ) -> Result {
@@ -1090,12 +1215,22 @@ pub fn plugin_ui(
                                 fire = Some(*index);
                             }
                         }
-                        for (slot, index) in chips.iter().enumerate() {
-                            let label = expanded(&answer_label(&panel.view, my_seat.0, *index));
-                            let digit = (slot < 9).then_some(slot + 1);
-                            if chip_button(ui, &label, false, digit) {
-                                fire = Some(*index);
+                        let options = selector_options(&panel.view, my_seat.0);
+                        if options.is_empty() {
+                            for (slot, index) in chips.iter().enumerate() {
+                                let label = expanded(&answer_label(&panel.view, my_seat.0, *index));
+                                let digit = (slot < 9).then_some(slot + 1);
+                                if chip_button(ui, &label, false, digit) {
+                                    fire = Some(*index);
+                                }
                             }
+                        } else if chip_button(
+                            ui,
+                            &format!("search {} choices", options.len()),
+                            false,
+                            None,
+                        ) {
+                            selector.open = true;
                         }
                     });
                 }
@@ -2413,5 +2548,37 @@ mod strip_tests {
         tray.picked = Some(0);
         tray.clear();
         assert!(tray.is_empty() && tray.picked.is_none());
+    }
+
+    #[test]
+    fn large_prompt_options_filter_without_inventing_a_choice() {
+        let mut view = PluginView {
+            prompt: Some(summary(0, "name a tag", 1, 1, 0, false)),
+            affordances: (0..SELECTOR_MIN_OPTIONS)
+                .map(|index| offer(&format!("tag {index}"), None, None))
+                .collect(),
+            ..Default::default()
+        };
+        assert_eq!(
+            selector_options(&view, 0),
+            (0..SELECTOR_MIN_OPTIONS).collect::<Vec<_>>()
+        );
+        assert!(selector_matches("Kennen", "ken"));
+        assert!(!selector_matches("Kennen", "poro"));
+        assert!(selector_options(&view, 1).is_empty());
+        view.affordances.truncate(SELECTOR_MIN_OPTIONS - 1);
+        assert!(selector_options(&view, 0).is_empty());
+    }
+
+    #[test]
+    fn yes_no_prompts_take_one_and_two_not_the_plugin_cancel_key() {
+        let view = PluginView {
+            prompt: Some(summary(0, "pay?", 1, 1, 0, false)),
+            affordances: vec![offer("yes", Some("1"), None), offer("no", Some("x"), None)],
+            ..Default::default()
+        };
+        assert_eq!(pressed_index(&view, &|key| key == KeyCode::Digit1), Some(0));
+        assert_eq!(pressed_index(&view, &|key| key == KeyCode::Digit2), Some(1));
+        assert_eq!(pressed_index(&view, &|key| key == KeyCode::KeyX), None);
     }
 }

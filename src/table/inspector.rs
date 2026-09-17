@@ -100,6 +100,7 @@ pub(super) fn inspector_ui(
     my_seat: Res<MySeat>,
     tuning: Res<Tuning>,
     chain_hover: Res<chain::ChainHover>,
+    pile_hover: Res<ui::PileHover>,
     selected: Res<Selected>,
     pinned: Res<interaction::Pinned>,
     menu: Res<crate::menu::Menu>,
@@ -131,16 +132,27 @@ pub(super) fn inspector_ui(
             landscape.is_some(),
         )
     });
+    let from_pile = pile_hover.0.and_then(|id| {
+        let card = table.get(id)?;
+        let face = sync::drawn_face_in(card, &mirror.view);
+        (!face.face.is_hidden())
+            .then(|| art_cache.image(&face.face.name, &mut images))
+            .flatten()
+            .map(|handle| (id, handle, false))
+    });
     let from_chain = chain_hover.0.and_then(|id| {
         let card = table.get(id)?;
-        let handle = art_cache.image(&card.face.name, &mut images)?;
+        let face = sync::drawn_face_in(card, &mirror.view);
+        let handle = (!face.face.is_hidden())
+            .then(|| art_cache.image(&face.face.name, &mut images))
+            .flatten()?;
         Some((id, handle, false))
     });
     let target = if held.card.is_none() {
         if pinned.0.is_some() {
             from_table
         } else {
-            from_table.or(from_chain)
+            from_table.or(from_chain).or(from_pile)
         }
     } else {
         None
