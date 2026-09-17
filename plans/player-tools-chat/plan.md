@@ -2,6 +2,9 @@
 
 Audience: contributors implementing and reviewing this feature.
 
+Status: KAI-01 reconciled the in-progress work with playtest main on Kai
+branch `reconcile/player-deck-tools-chat`; continue from that branch.
+
 ## Contract
 
 Human and automated seats use the same deck editor operations, importer,
