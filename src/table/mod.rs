@@ -181,7 +181,10 @@ impl Plugin for CardTablePlugin {
             .init_resource::<chain::ChainRects>()
             .init_resource::<chain::ChainSheet>()
             .init_resource::<ui::PileSheet>()
+            .init_resource::<ui::PileHover>()
+            .init_resource::<ui::PileSelected>()
             .init_resource::<plugin_ui::TrayItems>()
+            .init_resource::<plugin_ui::PromptSelector>()
             .init_resource::<art::ArtCache>()
             .init_resource::<crate::viewport::Viewport>()
             .insert_resource(crate::viewport::InputKind::assumed())
@@ -235,6 +238,7 @@ impl Plugin for CardTablePlugin {
                     drawer::drawer_ui,
                     history::history_ui,
                     hud::menu_button_ui,
+                    plugin_ui::prompt_selector_ui.after(plugin_ui::plugin_ui),
                 )
                     .chain(),
             )

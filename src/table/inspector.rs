@@ -1,6 +1,7 @@
 use super::hud::{self, Hud};
 use super::*;
 use agni_sim::wire::{CounterScope, CounterTarget};
+use bevy::ecs::system::SystemParam;
 
 pub const CAPTION_SIZE: f32 = 12.0;
 
@@ -90,40 +91,71 @@ pub fn face_size(slot: egui::Rect, wide: bool, scale: f32) -> egui::Vec2 {
     fitted * scale.max(0.0)
 }
 
-#[allow(clippy::too_many_arguments)]
+#[derive(SystemParam)]
+pub(super) struct InspectorInputs<'w, 's> {
+    hud: Res<'w, Hud>,
+    held: Res<'w, Held>,
+    table: Res<'w, GameTable>,
+    mirror: Res<'w, Mirror>,
+    my_seat: Res<'w, MySeat>,
+    tuning: Res<'w, Tuning>,
+    chain_hover: Res<'w, chain::ChainHover>,
+    pile_hover: Res<'w, ui::PileHover>,
+    pile_selected: Res<'w, ui::PileSelected>,
+    selected: Res<'w, Selected>,
+    pinned: Res<'w, interaction::Pinned>,
+    menu: Res<'w, crate::menu::Menu>,
+    hovered: Query<
+        'w,
+        's,
+        (
+            &'static CardArt,
+            Option<&'static Landscape>,
+            &'static CardView,
+        ),
+        (With<Hovered>, With<CardView>),
+    >,
+    cards: Query<
+        'w,
+        's,
+        (
+            &'static CardArt,
+            Option<&'static Landscape>,
+            &'static CardView,
+        ),
+        With<CardView>,
+    >,
+}
+
 pub(super) fn inspector_ui(
     mut contexts: EguiContexts,
-    hud: Res<Hud>,
-    held: Res<Held>,
-    table: Res<GameTable>,
-    mirror: Res<Mirror>,
-    my_seat: Res<MySeat>,
-    tuning: Res<Tuning>,
-    chain_hover: Res<chain::ChainHover>,
-    selected: Res<Selected>,
-    pinned: Res<interaction::Pinned>,
-    menu: Res<crate::menu::Menu>,
+    input: InspectorInputs,
     mut art_cache: ResMut<art::ArtCache>,
     mut images: ResMut<Assets<Image>>,
     mut registry: ResMut<crate::render::egui_art::EguiArt>,
-    hovered: Query<(&CardArt, Option<&Landscape>, &CardView), (With<Hovered>, With<CardView>)>,
-    cards: Query<(&CardArt, Option<&Landscape>, &CardView), With<CardView>>,
 ) -> Result {
-    let Some(slot) = hud.0.inspector else {
+    let Some(slot) = input.hud.0.inspector else {
         return Ok(());
     };
-    if !menu.at_table() {
+    if !input.menu.at_table() {
         return Ok(());
     }
-    let focus = pinned
+    let focus = input
+        .pinned
         .0
-        .and_then(|entity| cards.get(entity).ok())
-        .or_else(|| hovered.iter().next())
-        .or_else(|| selected.0.and_then(|entity| cards.get(entity).ok()));
+        .and_then(|entity| input.cards.get(entity).ok())
+        .or_else(|| input.hovered.iter().next())
+        .or_else(|| {
+            input
+                .selected
+                .0
+                .and_then(|entity| input.cards.get(entity).ok())
+        });
     let from_table = focus.map(|(art, landscape, view)| {
-        let peeked = table
+        let peeked = input
+            .table
             .get(view.0)
-            .and_then(|card| super::sync::peeked_face(card, &mirror, my_seat.0))
+            .and_then(|card| super::sync::peeked_face(card, &input.mirror, input.my_seat.0))
             .and_then(|name| art_cache.image(name, &mut images));
         (
             view.0,
@@ -131,16 +163,29 @@ pub(super) fn inspector_ui(
             landscape.is_some(),
         )
     });
-    let from_chain = chain_hover.0.and_then(|id| {
-        let card = table.get(id)?;
-        let handle = art_cache.image(&card.face.name, &mut images)?;
+    let pile_preview = |id| {
+        let card = input.table.get(id)?;
+        let face = sync::drawn_face_in(card, &input.mirror.view);
+        (!face.face.is_hidden())
+            .then(|| art_cache.image(&face.face.name, &mut images))
+            .flatten()
+            .map(|handle| (id, handle, false))
+    };
+    let from_pile =
+        ui::pile_target(input.pile_hover.0, input.pile_selected.0).and_then(|id| pile_preview(id));
+    let from_chain = input.chain_hover.0.and_then(|id| {
+        let card = input.table.get(id)?;
+        let face = sync::drawn_face_in(card, &input.mirror.view);
+        let handle = (!face.face.is_hidden())
+            .then(|| art_cache.image(&face.face.name, &mut images))
+            .flatten()?;
         Some((id, handle, false))
     });
-    let target = if held.card.is_none() {
-        if pinned.0.is_some() {
+    let target = if input.held.card.is_none() {
+        if input.pinned.0.is_some() {
             from_table
         } else {
-            from_table.or(from_chain)
+            from_chain.or(from_pile).or(from_table)
         }
     } else {
         None
@@ -148,16 +193,17 @@ pub(super) fn inspector_ui(
     let Some((id, handle, wide)) = target else {
         return Ok(());
     };
-    let caption = table
+    let caption = input
+        .table
         .get(id)
         .map(|card| {
-            let statuses = counters::status_chips(&mirror, id.0);
-            caption(card, &mirror, my_seat.0, &statuses)
+            let statuses = counters::status_chips(&input.mirror, id.0);
+            caption(card, &input.mirror, input.my_seat.0, &statuses)
         })
         .unwrap_or_default();
     let texture = registry.texture(&mut contexts, &handle);
     let context = contexts.ctx_mut()?.clone();
-    let size = face_size(slot, wide, tuning.preview_scale);
+    let size = face_size(slot, wide, input.tuning.preview_scale);
     egui::Area::new(egui::Id::new("inspector"))
         .fixed_pos(egui::pos2(
             slot.min.x,

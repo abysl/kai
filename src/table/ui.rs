@@ -4,6 +4,16 @@ use agni_sim::wire::ZoneKind;
 #[derive(Resource, Debug, Default, Clone, Copy, PartialEq)]
 pub(super) struct PileSheet(pub Option<(u16, PlayerId)>);
 
+#[derive(Resource, Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub(super) struct PileHover(pub Option<CardId>);
+
+#[derive(Resource, Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub(super) struct PileSelected(pub Option<CardId>);
+
+pub fn pile_target(hovered: Option<CardId>, selected: Option<CardId>) -> Option<CardId> {
+    hovered.or(selected)
+}
+
 pub(super) fn card_label_ui(
     mut contexts: EguiContexts,
     camera: Query<(&Camera, &GlobalTransform), With<Camera3d>>,
@@ -234,6 +244,27 @@ pub fn pile_openable(kind: ZoneKind, count: usize) -> bool {
     kind == ZoneKind::Discard && count > 0
 }
 
+pub fn discard_piles(
+    zones: &[agni_sim::wire::ZoneDecl],
+    table: &Table,
+    players: usize,
+) -> Vec<(u16, PlayerId, usize)> {
+    let mut piles = Vec::new();
+    for decl in zones.iter().filter(|decl| decl.kind == ZoneKind::Discard) {
+        let seats: Vec<PlayerId> = match decl.owner {
+            agni_sim::wire::ZoneOwner::PerSeat => (0..players as u8).map(PlayerId).collect(),
+            _ => vec![PlayerId(0)],
+        };
+        for seat in seats {
+            let count = table.in_area(seat, Zone::Plugin(decl.id)).count();
+            if count > 0 {
+                piles.push((decl.id, seat, count));
+            }
+        }
+    }
+    piles
+}
+
 pub fn toggle_pile(
     current: Option<(u16, PlayerId)>,
     zone: u16,
@@ -267,9 +298,13 @@ pub(super) fn zone_overlay_ui(
     seat_colors: Res<colors::SeatColors>,
     menu: Res<crate::menu::Menu>,
     mut pile_sheet: ResMut<PileSheet>,
+    mut pile_hover: ResMut<PileHover>,
+    mut pile_selected: ResMut<PileSelected>,
     camera: Query<(&Camera, &GlobalTransform), With<Camera3d>>,
 ) -> Result {
     if mirror.view.zones.is_empty() || !menu.at_table() {
+        pile_hover.0 = None;
+        pile_selected.0 = None;
         return Ok(());
     }
     let Ok((camera, camera_transform)) = camera.single() else {
@@ -372,6 +407,8 @@ pub(super) fn pile_sheet_ui(
     mut contexts: EguiContexts,
     hud: Res<hud::Hud>,
     mut pile_sheet: ResMut<PileSheet>,
+    mut pile_hover: ResMut<PileHover>,
+    mut pile_selected: ResMut<PileSelected>,
     mirror: Res<Mirror>,
     table: Res<GameTable>,
     my_seat: Res<MySeat>,
@@ -380,14 +417,20 @@ pub(super) fn pile_sheet_ui(
     menu: Res<crate::menu::Menu>,
 ) -> Result {
     let Some((zone, seat)) = pile_sheet.0 else {
+        pile_hover.0 = None;
+        pile_selected.0 = None;
         return Ok(());
     };
     if !menu.at_table() || mirror.view.zones.is_empty() {
         pile_sheet.0 = None;
+        pile_hover.0 = None;
+        pile_selected.0 = None;
         return Ok(());
     }
     let Some(decl) = mirror.view.zones.iter().find(|decl| decl.id == zone) else {
         pile_sheet.0 = None;
+        pile_hover.0 = None;
+        pile_selected.0 = None;
         return Ok(());
     };
     let table = &table.0;
@@ -398,6 +441,8 @@ pub(super) fn pile_sheet_ui(
     let owner = colors::seat_label(&info.roster, &seat_colors, my_seat.0, seat);
     let title = owner_prefix(false, owner.2, &owner.0, &decl.label);
     let context = contexts.ctx_mut()?.clone();
+    pile_hover.0 = None;
+    pile_selected.0 = pile_selected.0.filter(|id| ids.contains(id));
     let mut open = true;
     hud::sheet(
         &context,
@@ -417,12 +462,20 @@ pub(super) fn pile_sheet_ui(
                 } else {
                     label
                 };
-                ui.label(text);
+                let response = ui.add(egui::Label::new(text).sense(egui::Sense::click()));
+                if response.hovered() {
+                    pile_hover.0 = Some(*id);
+                }
+                if response.clicked() {
+                    pile_selected.0 = Some(*id);
+                }
             }
         },
     );
     if !open {
         pile_sheet.0 = None;
+        pile_hover.0 = None;
+        pile_selected.0 = None;
     }
     Ok(())
 }
@@ -843,6 +896,13 @@ mod hud_tests {
             Some((banished, PlayerId(0))),
             "clicking a different pile switches to it, never toggling closed"
         );
+    }
+
+    #[test]
+    fn a_tapped_pile_card_stays_previewed_until_another_target_replaces_it() {
+        let tapped = Some(CardId(7));
+        assert_eq!(pile_target(None, tapped), tapped);
+        assert_eq!(pile_target(Some(CardId(8)), tapped), Some(CardId(8)));
     }
 
     #[test]
