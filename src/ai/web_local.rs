@@ -293,7 +293,11 @@ fn tick_model(live: &mut Live) {
     let Some(key) = driver::decision_key(&live.driver.seat) else {
         return;
     };
-    let fresh = std::mem::take(&mut live.fresh_chat);
+    let fresh =
+        std::mem::take(&mut live.fresh_chat) | std::mem::take(&mut live.driver.seat.fresh_chat);
+    if fresh {
+        live.key = None;
+    }
     if key.1.is_empty() && live.driver.seat.dealt && !fresh {
         return;
     }
@@ -342,9 +346,15 @@ fn tick_model(live: &mut Live) {
             })
             .unwrap_or_default(),
         zone_names: seat.zones().iter().map(|zone| zone.name.clone()).collect(),
-        messages: chat_lines()
-            .into_iter()
-            .filter_map(|line| line.strip_prefix("you: ").map(str::to_string))
+        messages: seat
+            .messages
+            .iter()
+            .cloned()
+            .chain(
+                chat_lines()
+                    .into_iter()
+                    .filter_map(|line| line.strip_prefix("you: ").map(str::to_string)),
+            )
             .collect(),
         decks: Vec::new(),
         deck_loaded: seat
@@ -411,8 +421,46 @@ pub async fn execute(conn: u64, epoch: u64, command: &str) -> String {
     if !decision_current(conn, epoch) {
         return DECISION_OVER.into();
     }
+    if let Some(text) = command.strip_prefix("deck-action ") {
+        let args: serde_json::Value = match serde_json::from_str(text) {
+            Ok(args) => args,
+            Err(_) => return "Invalid deck action JSON".into(),
+        };
+        let remote = if let Some(request) = crate::deck::actions::remote(&args) {
+            #[cfg(target_arch = "wasm32")]
+            let reply = crate::deck::service::perform(&request).await;
+            #[cfg(not(target_arch = "wasm32"))]
+            let reply = crate::deck::service::perform(&request);
+            Some(reply)
+        } else {
+            None
+        };
+        if !decision_current(conn, epoch) {
+            return DECISION_OVER.into();
+        }
+        return LIVE.with(|slot| {
+            let mut slot = slot.borrow_mut();
+            let live = slot.as_mut().expect("current decision");
+            let result = match remote {
+                Some(Ok(reply)) => {
+                    crate::deck::actions::imported(&mut live.driver.seat.draft, reply)
+                }
+                Some(Err(error)) => Err(error),
+                None => super::decks::local(&mut live.driver.seat, &mut live.link, &args),
+            };
+            match result {
+                Ok(value) => value.to_string(),
+                Err(error) => serde_json::json!({"error":error}).to_string(),
+            }
+        });
+    }
     if let Some(text) = command.strip_prefix("say ") {
         append_chat(format!("bot: {text}"));
+        LIVE.with(|slot| {
+            if let Some(live) = slot.borrow_mut().as_mut() {
+                live.driver.command(&mut live.link, command);
+            }
+        });
         return "said".into();
     }
     let before = LIVE.with(|slot| {

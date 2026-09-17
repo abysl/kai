@@ -612,7 +612,12 @@ fn section_ui(
         Section::Deck => deck_card(ui, menu, decks, thumbs),
         Section::Rules { locked, fixed } => rules_group(ui, game, locked, fixed, net),
         Section::Opponent => {
-            opponent::opponent_group(ui, game, menu, my_seat, table, net, decks, thumbs)
+            opponent::opponent_group(ui, game, menu, my_seat, table, net, decks, thumbs);
+            if net.info.active() {
+                ui.collapsing("table chat · ask for a deck or matchup", |ui| {
+                    crate::table::drawer::chat_tab(ui, &mut net.ai, &net.info);
+                });
+            }
         }
     }
 }
