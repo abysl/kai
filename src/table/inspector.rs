@@ -101,6 +101,7 @@ pub(super) struct InspectorInputs<'w, 's> {
     tuning: Res<'w, Tuning>,
     chain_hover: Res<'w, chain::ChainHover>,
     pile_hover: Res<'w, ui::PileHover>,
+    pile_selected: Res<'w, ui::PileSelected>,
     selected: Res<'w, Selected>,
     pinned: Res<'w, interaction::Pinned>,
     menu: Res<'w, crate::menu::Menu>,
@@ -162,14 +163,16 @@ pub(super) fn inspector_ui(
             landscape.is_some(),
         )
     });
-    let from_pile = input.pile_hover.0.and_then(|id| {
+    let pile_preview = |id| {
         let card = input.table.get(id)?;
         let face = sync::drawn_face_in(card, &input.mirror.view);
         (!face.face.is_hidden())
             .then(|| art_cache.image(&face.face.name, &mut images))
             .flatten()
             .map(|handle| (id, handle, false))
-    });
+    };
+    let from_pile =
+        ui::pile_target(input.pile_hover.0, input.pile_selected.0).and_then(|id| pile_preview(id));
     let from_chain = input.chain_hover.0.and_then(|id| {
         let card = input.table.get(id)?;
         let face = sync::drawn_face_in(card, &input.mirror.view);

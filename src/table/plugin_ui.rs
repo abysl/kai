@@ -2752,7 +2752,7 @@ mod strip_tests {
         };
         let hidden_terms = selector_search(&hidden_view, 0, &table, &mirror, PlayerId(0), &catalog);
         assert!(selector_matches(&hidden_terms, FACE_DOWN));
-        assert!(!hidden_terms.contains("Hidden Poro"));
+        assert!(!hidden_terms.contains("hidden poro"));
     }
 
     #[test]

@@ -15,7 +15,7 @@ The compact chain rail cleared its hover target, discard rows could not supply a
 
 ## Result
 
-Chain and discard browsing now drive a visibility-checked inspector preview. Public discard stays limited to declared discard zones and uses the accepted face visibility. Large non-card prompt options use a searchable selector backed only by the existing affordances. Yes and no map to `1` and `2`; `x` no longer fires a no answer.
+Chain and discard browsing now drive a visibility-checked inspector preview. Public discard stays limited to declared discard zones and uses the accepted face visibility. Large prompt options use a searchable selector backed only by the existing affordances. Yes and no map to `1` and `2`; `x` no longer fires a no answer.
 
 The follow-up groups inspector inputs in one `SystemParam`, gives an explicit
 chain or pile hover priority over stale selected cards unless an inspector pin
@@ -37,4 +37,6 @@ and rules text; hidden card faces contribute only the face-down label.
 
 ## Remaining limitations
 
-The selector deliberately leaves card-target prompts on the felt and existing faceless-card tray. It does not manufacture card choices or inspect hidden faces.
+The selector does not manufacture choices or inspect hidden faces. Existing felt
+and faceless-card-tray affordances remain available alongside its large-option
+list.

@@ -182,6 +182,7 @@ impl Plugin for CardTablePlugin {
             .init_resource::<chain::ChainSheet>()
             .init_resource::<ui::PileSheet>()
             .init_resource::<ui::PileHover>()
+            .init_resource::<ui::PileSelected>()
             .init_resource::<plugin_ui::TrayItems>()
             .init_resource::<plugin_ui::PromptSelector>()
             .init_resource::<art::ArtCache>()
