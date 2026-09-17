@@ -191,7 +191,7 @@ pub fn seat_label(
         Verdict::Broken(_) if armed && !enforced => ("seat anyway".into(), true),
         Verdict::Broken(n) => (
             format!("seat · {}", rows::verdict_text(Verdict::Broken(n))),
-            !enforced,
+            crate::deck::actions::selection_legal(verdict, enforced),
         ),
         _ if next_game => ("use this list next game".into(), true),
         _ => ("seat this deck".into(), true),
@@ -406,6 +406,12 @@ fn import_modal(
                 .request_repaint_after(std::time::Duration::from_millis(100));
         }
         import::import_status(ui, panel);
+        ui.collapsing("search public decklists", |ui| {
+            if let Some(url) = panel.search.ui(ui) {
+                panel.paste = url;
+                import::begin_import_any(panel);
+            }
+        });
         if let Some(action) = import::result_panel(ui, panel, import::LOAD_LABEL) {
             actions.push(match action {
                 import::ImportAction::Edit {

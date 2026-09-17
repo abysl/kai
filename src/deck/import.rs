@@ -192,6 +192,7 @@ pub enum ImportAction {
 
 #[derive(Resource, Default)]
 pub struct ImportPanel {
+    pub search: super::service::SearchPanel,
     pub paste: String,
     pub busy: bool,
     pub note: Option<String>,

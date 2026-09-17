@@ -133,6 +133,7 @@ impl Plugin for CardTablePlugin {
             .init_resource::<camera::Extent>()
             .init_resource::<MySeat>()
             .init_resource::<SessionInfo>()
+            .add_systems(Update, crate::net::chat::route)
             .init_resource::<undo::UndoUi>()
             .add_message::<net::undo::Command>()
             .add_systems(EguiPrimaryContextPass, undo::undo_ui)
@@ -581,6 +582,7 @@ pub enum Recovery {
 }
 #[derive(Resource, Debug, Default)]
 pub struct SessionInfo {
+    pub chat: crate::net::chat::Chat,
     pub undo: agni_net::session::UndoStatus,
     pub undo_generation: u64,
     pub role: SessionRole,

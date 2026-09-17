@@ -105,18 +105,12 @@ fn body(ui: &mut egui::Ui, setup: &mut Setup, start: bool) -> bool {
                 .desired_width(f32::INFINITY),
         );
         let search = setup.search.to_lowercase();
-        let selected = setup
-            .models
-            .iter()
-            .find(|model| model.id == setup.model)
-            .map(|model| model.name.as_str())
-            .unwrap_or("Choose a model…");
         let width = ui.available_width().max(100.0);
-        egui::ComboBox::from_id_salt("AI model")
-            .width(width)
-            .height(240.0)
-            .selected_text(selected)
-            .show_ui(ui, |ui| {
+        egui::ScrollArea::vertical()
+            .id_salt("AI model list")
+            .max_height(160.0)
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
                 ui.set_max_width(width);
                 let mut count = 0;
                 for model in &setup.models {
@@ -126,16 +120,27 @@ fn body(ui: &mut egui::Ui, setup: &mut Setup, start: bool) -> bool {
                         continue;
                     }
                     count += 1;
-                    ui.selectable_value(
-                        &mut setup.model,
-                        model.id.clone(),
-                        format!("{} · {}", model.name, model.id),
-                    );
+                    if ui
+                        .add_sized(
+                            [width, TOUCH],
+                            egui::Button::selectable(
+                                setup.model == model.id,
+                                format!("{}\n{}", model.name, model.id),
+                            )
+                            .wrap(),
+                        )
+                        .clicked()
+                    {
+                        setup.model = model.id.clone();
+                    }
                 }
                 if count == 0 {
                     ui.label("No matching models");
                 }
             });
+        if !setup.model.is_empty() {
+            ui.small(format!("Selected: {}", setup.model));
+        }
         if setup.loading() {
             ui.horizontal(|ui| {
                 ui.spinner();
