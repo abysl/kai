@@ -349,7 +349,9 @@ impl Plugin for CardTablePlugin {
             .init_resource::<camera::EdgeDrift>();
         app.init_resource::<net::NewGameWatch>().add_systems(
             Update,
-            net::redeal_after_new_game.before(net::route_deck_deals),
+            net::redeal_after_new_game
+                .after(net::route_redeal)
+                .before(import::auto_deal),
         );
         app.insert_resource(playmat::PlaymatLibrary::load())
             .init_resource::<personal_playmat::PersonalPlaymat>()

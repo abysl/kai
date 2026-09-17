@@ -40,6 +40,10 @@ impl ArtGame {
             Self::Mtg => "f089735677a17dc62cbaecaf46719ac2f2f3a88832d01308d8721b4c1be37595",
         }
     }
+
+    pub fn back_asset_url(self) -> String {
+        format!("https://kai.rae.blue/gateway/blob/{}", self.back_hash())
+    }
 }
 
 pub const BACK_ID: &str = "card-back";
@@ -167,7 +171,11 @@ impl ArtQueue {
                 *attempts += 1;
                 if *attempts >= MAX_ATTEMPTS {
                     self.open.remove(&key);
-                    self.settled.insert(key);
+                    if request.is_back() {
+                        self.attempts.remove(&key);
+                    } else {
+                        self.settled.insert(key);
+                    }
                 } else {
                     self.pending.push_back(request.clone());
                 }
@@ -217,6 +225,19 @@ pub struct ArtCache {
 }
 
 impl ArtCache {
+    pub fn back_image(&mut self, game: ArtGame, images: &mut Assets<Image>) -> Handle<Image> {
+        if let Some(image) = self.image(game.back_name(), images) {
+            return image;
+        }
+        let key = "kai/card-back-placeholder";
+        if let Some(image) = self.images.get(key) {
+            return image.clone();
+        }
+        let handle = images.add(placeholder_back());
+        self.images.insert(key.into(), handle.clone());
+        handle
+    }
+
     pub fn remove(&mut self, name: &str) {
         self.bytes.remove(&art_key(name));
         self.images.remove(&art_key(name));
@@ -275,6 +296,36 @@ impl ArtCache {
         self.images.insert(key, handle.clone());
         Some(handle)
     }
+}
+
+fn placeholder_back() -> Image {
+    use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
+    let mut pixels = Vec::with_capacity(64 * 96 * 4);
+    for y in 0i32..96 {
+        for x in 0i32..64 {
+            let edge = x.min(63 - x).min(y.min(95 - y));
+            let diamond = (x - 31).abs() * 3 + (y - 47).abs() * 2;
+            let ink = if (3..=5).contains(&edge) || (49..=55).contains(&diamond) {
+                [181, 159, 104, 255]
+            } else if ((x / 8) + (y / 8)) % 2 == 0 {
+                [27, 35, 53, 255]
+            } else {
+                [33, 42, 62, 255]
+            };
+            pixels.extend_from_slice(&ink);
+        }
+    }
+    Image::new(
+        Extent3d {
+            width: 64,
+            height: 96,
+            depth_or_array_layers: 1,
+        },
+        TextureDimension::D2,
+        pixels,
+        TextureFormat::Rgba8UnormSrgb,
+        RenderAssetUsages::RENDER_WORLD,
+    )
 }
 
 pub fn image_extension(bytes: &[u8]) -> &'static str {
@@ -522,22 +573,35 @@ mod worker {
                 return Ok(Some(bytes));
             }
             if request.is_back() {
+                use std::io::Read;
                 let store =
                     spirit_core::BlobStore::open(&self.dir).map_err(|error| error.to_string())?;
-                let journal = super::assets::BACKS_JOURNAL;
-                let from_mesh = super::assets::ensure_from_mesh(&store, journal, &request.key());
-                let agent = agni_importers::art::art_agent();
-                let (_, bytes) = agni_importers::art::fetch_one(
-                    &store,
-                    journal,
-                    &agent,
-                    &request.key(),
-                    request.game.back_url(),
-                )
-                .map_err(|error| error.to_string())?;
-                if !from_mesh {
-                    super::assets::republish(&self.dir);
-                }
+                let expected = request.game.back_hash();
+                let hash = spirit_core::BlobHash::parse(expected)
+                    .ok_or("Invalid card-back fingerprint")?;
+                let bytes = if let Ok(bytes) = store.get(hash) {
+                    bytes
+                } else {
+                    let mut bytes = Vec::new();
+                    agni_importers::art::art_agent()
+                        .get(&request.game.back_asset_url())
+                        .timeout(std::time::Duration::from_secs(20))
+                        .call()
+                        .map_err(|error| error.to_string())?
+                        .into_reader()
+                        .take((1 << 20) + 1)
+                        .read_to_end(&mut bytes)
+                        .map_err(|error| error.to_string())?;
+                    if bytes.len() > 1 << 20 {
+                        return Err("Card back exceeds the download limit".into());
+                    }
+                    bytes
+                };
+                super::validate_download(&bytes, Some(expected))?;
+                agni_importers::art::Journal::open(&store, super::assets::BACKS_JOURNAL)
+                    .put(&store, &request.key(), &bytes)
+                    .map_err(|error| error.to_string())?;
+                super::assets::republish(&self.dir);
                 return Ok(Some(bytes));
             }
             let landed = match request.game {
@@ -698,10 +762,14 @@ pub fn queue_visible_art(
     mirror: Res<crate::table::Mirror>,
     cache: Res<ArtCache>,
     tokens: Res<crate::table::tokens::PluginTokens>,
+    time: Res<Time>,
+    mut next_poll: Local<f64>,
 ) {
-    if !table.is_changed() && !cache.is_changed() && !tokens.is_changed() {
+    let now = time.elapsed_secs_f64();
+    if !table.is_changed() && !cache.is_changed() && !tokens.is_changed() && now < *next_poll {
         return;
     }
+    *next_poll = now + 3.0;
     let Some(game) = crate::net::game_of_zones(&mirror.view.zones).art_game() else {
         return;
     };
@@ -769,6 +837,46 @@ pub fn queue_visible_art(
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod runtime_art_tests {
     use super::*;
+
+    #[test]
+    fn a_placeholder_back_stays_visible_offline_but_does_not_stop_real_art_loading() {
+        let mut cache = ArtCache::default();
+        let mut images = Assets::<Image>::default();
+        let placeholder = cache.back_image(ArtGame::Riftbound, &mut images);
+        let image = images.get(&placeholder).unwrap();
+        assert_eq!((image.width(), image.height()), (64, 96));
+        assert!(!cache.has(ArtGame::Riftbound.back_name()));
+        assert_eq!(
+            placeholder,
+            cache.back_image(ArtGame::Riftbound, &mut images)
+        );
+        let mut encoded = std::io::Cursor::new(Vec::new());
+        image::DynamicImage::new_rgb8(2, 3)
+            .write_to(&mut encoded, image::ImageFormat::Png)
+            .unwrap();
+        cache.insert(ArtGame::Riftbound.back_name(), encoded.into_inner());
+        assert_ne!(
+            placeholder,
+            cache.back_image(ArtGame::Riftbound, &mut images)
+        );
+    }
+
+    #[test]
+    fn card_back_failure_can_recover_after_the_normal_retry_budget() {
+        let mut queue = ArtQueue::default();
+        let request = ArtRequest::back(ArtGame::Riftbound);
+        queue.enqueue(request.clone());
+        for _ in 0..MAX_ATTEMPTS {
+            let taken = queue.take().unwrap();
+            assert!(queue.finish(&taken, Err("offline".into())).is_none());
+        }
+        assert!(queue.is_empty());
+        assert!(queue.enqueue(request));
+        let taken = queue.take().unwrap();
+        assert!(queue
+            .finish(&taken, Ok(Some(b"recovered".to_vec())))
+            .is_some());
+    }
 
     #[test]
     fn both_card_backs_have_content_addresses_without_bundled_art() {

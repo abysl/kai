@@ -56,7 +56,7 @@ pub const IMPORT_SLOT: &str = "editor-import";
 pub const IMPORT_TITLE: &str = "import from the clipboard";
 pub const IMPORT_READING: &str = "reading the clipboard…";
 pub const IMPORT_NOTE: &str =
-    "copy a deck list, a Piltover Archive deck code, or a riftdecks / piltover / rift atlas link, then press import";
+    "copy a deck list, a deck code, or a TCG Arena / RiftDecks / Piltover Archive / Rift Atlas deck link, then press import";
 
 impl EditorSheet {
     pub fn toast(&mut self, text: impl Into<String>, now: f64) {

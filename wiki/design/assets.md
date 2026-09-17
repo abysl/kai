@@ -25,9 +25,13 @@ Do not commit downloaded card images or local asset journals.
 ## Card backs and curated playmats
 
 Card backs are runtime content, not files bundled with the application. The
-browser requests the game's pinned content hash from the public content
-service, without waiting for gateway discovery. Both Riftbound and Magic
-use this path. Native clients use their local/peer cache and the upstream source.
+browser requests the game's pinned content hash from its same-origin gateway,
+without waiting for catalog discovery. A local development page falls back to
+the public content service. Both Riftbound and Magic use this path. Verified
+back images are retained in browser local storage under their content hashes;
+corrupt cached bytes are discarded. Retried image requests refresh the HTTP
+cache so a cached invalid response cannot keep the table blank. Native clients
+use the pinned blob in their local store or fetch that exact public blob.
 Native artwork workers construct network deadlines inside the node runtime;
 constructing a Tokio timer on their plain worker thread panics and strands the
 art queue. Request card backs before faces so large decks do not delay them.
@@ -38,6 +42,10 @@ Failures, invalid responses and timeouts remain retryable; a failed request
 must not permanently mark the image as loaded. The download deadline is 20
 seconds, with a three-second retry interval. Hidden cards and opponent hand
 backs are refreshed when the art cache changes, even on an idle table.
+While offline or waiting, a code-generated patterned back keeps hidden cards
+recognizable without bundling game artwork. It never marks the requested image
+as loaded. Opponent hand materials track the image identity, not just whether
+a texture exists, so the real back replaces the placeholder when it arrives.
 
 Opening settings loads library previews without requiring a playmat selection.
 The four former built-in playmats are no longer in the catalog; saved selections

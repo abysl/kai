@@ -923,6 +923,12 @@ pub fn opp_strip_ui(
         return Ok(());
     }
     let portrait = hud.0.class == ViewportClass::PhonePortrait;
+    let back_texture = crate::net::game_of_zones(&mirror.view.zones)
+        .art_game()
+        .map(|game| {
+            let handle = art.cache.back_image(game, &mut art.images);
+            art.registry.texture(&mut contexts, &handle)
+        });
     let mut thumbs: Vec<(u8, Option<egui::TextureId>, Option<egui::TextureId>)> = Vec::new();
     if portrait {
         for seat in &strip.seats {
@@ -985,6 +991,14 @@ pub fn opp_strip_ui(
                         let (back, _) =
                             ui.allocate_exact_size(vec2(BACK_W, BACK_H), egui::Sense::hover());
                         ui.painter().rect_filled(back, 2.0, CARD_BACK_INK);
+                        if let Some(texture) = back_texture {
+                            ui.painter().image(
+                                texture,
+                                back,
+                                egui::Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
+                                egui::Color32::WHITE,
+                            );
+                        }
                         ui.painter().rect_stroke(
                             back,
                             2.0,

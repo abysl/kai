@@ -22,10 +22,9 @@ pub(super) fn sync_cards(
     {
         return;
     }
-    let back_name = net::game_of_zones(&mirror.view.zones)
-        .art_game()
-        .map(|game| game.back_name());
-    let back_image = back_name.and_then(|name| art.image(name, &mut images));
+    let game = net::game_of_zones(&mirror.view.zones).art_game();
+    let back_name = game.map(|game| game.back_name());
+    let back_image = game.map(|game| art.back_image(game, &mut images));
     let force = generation.is_changed();
     let mut kept: Vec<CardId> = Vec::new();
     for (entity, view, key) in &existing {
@@ -361,7 +360,13 @@ pub(super) fn sync_hand_backs(
     mut images: ResMut<Assets<Image>>,
     mut art: ResMut<art::ArtCache>,
     mirror: Res<Mirror>,
-    mut assets: Local<Option<(Handle<Mesh>, Handle<StandardMaterial>, bool)>>,
+    mut assets: Local<
+        Option<(
+            Handle<Mesh>,
+            Handle<StandardMaterial>,
+            Option<AssetId<Image>>,
+        )>,
+    >,
 ) {
     if !players.is_changed()
         && !table.is_changed()
@@ -374,9 +379,9 @@ pub(super) fn sync_hand_backs(
     }
     let back_image = net::game_of_zones(&mirror.view.zones)
         .art_game()
-        .and_then(|game| art.image(game.back_name(), &mut images));
-    let textured = back_image.is_some();
-    if assets.as_ref().is_some_and(|(_, _, was)| *was != textured) {
+        .map(|game| art.back_image(game, &mut images));
+    let texture = back_image.as_ref().map(Handle::id);
+    if assets.as_ref().is_some_and(|(_, _, was)| *was != texture) {
         *assets = None;
     }
     let (back_mesh, back_material, _) = assets
@@ -397,7 +402,7 @@ pub(super) fn sync_hand_backs(
             (
                 meshes.add(Cuboid::new(dim::CARD_W, dim::CARD_THICK, dim::CARD_H)),
                 materials.add(material),
-                textured,
+                texture,
             )
         })
         .clone();

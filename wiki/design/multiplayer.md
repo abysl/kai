@@ -51,6 +51,16 @@ modules; a separate content service is not proof that the correct module loaded.
 The wire protocol version is independent of the application version. A mismatch
 must fail clearly rather than attempting to decode incompatible messages.
 
+## Dealing a retained deck
+
+A selected deck remains selected when the player opens another table. New
+tables and accepted resets rearm auto-dealing; starting, joining and ended
+roles cannot consume the request. The request stays pending until the player
+has a host/client seat and the table's game matches the deck. An already-dealt
+seat is left alone on reconnect. Matchmaking keeps the pending request until
+its reservation is complete. This scheduling only emits a deal request; the
+host still validates and applies it.
+
 ## Visibility and reconnect
 
 A private hand needs seat-specific faces and public commitments, not a complete

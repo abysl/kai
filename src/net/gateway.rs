@@ -99,9 +99,70 @@ static STATUS_LINE: Mutex<String> = Mutex::new(String::new());
 static ART: Mutex<BTreeMap<String, Vec<u8>>> = Mutex::new(BTreeMap::new());
 static FETCHING: Mutex<BTreeSet<String>> = Mutex::new(BTreeSet::new());
 static ARRIVALS: Mutex<Vec<(String, Vec<u8>)>> = Mutex::new(Vec::new());
+static BACKS_CHECKED: Mutex<BTreeSet<String>> = Mutex::new(BTreeSet::new());
+
+fn back_storage_key(hash: &str) -> String {
+    format!("kai.card-back.{hash}")
+}
+
+fn restore_back(game: crate::render::art::ArtGame) -> Option<Vec<u8>> {
+    use base64::Engine;
+    let storage = web_sys::window()?.local_storage().ok()??;
+    let key = back_storage_key(game.back_hash());
+    let encoded = storage.get_item(&key).ok()??;
+    let bytes = (encoded.len() <= 1 << 20)
+        .then(|| {
+            base64::engine::general_purpose::STANDARD
+                .decode(encoded)
+                .ok()
+        })
+        .flatten();
+    match bytes.filter(|bytes| {
+        crate::render::art::validate_download(bytes, Some(game.back_hash())).is_ok()
+    }) {
+        Some(bytes) => Some(bytes),
+        None => {
+            let _ = storage.remove_item(&key);
+            None
+        }
+    }
+}
+
+fn remember_back(name: &str, expected: Option<&str>, bytes: &[u8]) {
+    use crate::render::art::ArtGame;
+    use base64::Engine;
+    let Some(game) = [ArtGame::Riftbound, ArtGame::Mtg]
+        .into_iter()
+        .find(|game| game.back_name() == name && expected == Some(game.back_hash()))
+    else {
+        return;
+    };
+    if let Some(storage) = web_sys::window()
+        .and_then(|window| window.local_storage().ok())
+        .flatten()
+    {
+        let encoded = base64::engine::general_purpose::STANDARD.encode(bytes);
+        let _ = storage.set_item(&back_storage_key(game.back_hash()), &encoded);
+    }
+}
 
 pub fn request_back(game: crate::render::art::ArtGame, now: f64) {
-    let url = format!("https://kai.rae.blue/gateway/blob/{}", game.back_hash());
+    if BACKS_CHECKED.lock().insert(game.back_hash().into()) {
+        if let Some(bytes) = restore_back(game) {
+            let key = format!("remote/{}", game.back_name());
+            ASSET_NAMES
+                .lock()
+                .insert(key.clone(), game.back_name().into());
+            ASSET_RETRY
+                .lock()
+                .insert(key.clone(), now + ASSET_GIVE_UP_SECS);
+            ARRIVALS.lock().push((key, bytes));
+            return;
+        }
+    }
+    let url = page_origin()
+        .map(|base| format!("{base}/gateway/blob/{}", game.back_hash()))
+        .unwrap_or_else(|| game.back_asset_url());
     request_remote_art(game.back_name(), &url, Some(game.back_hash()), now);
 }
 
@@ -276,7 +337,9 @@ pub fn request_remote_art(name: &str, url: &str, expected: Option<&str>, now: f6
     let expected = expected.map(str::to_string);
     wasm_bindgen_futures::spawn_local(async move {
         let outcome = n0_future::time::timeout(std::time::Duration::from_secs(20), async {
-            let bytes = fetch_bytes(&url).await.map_err(|error| error.to_string())?;
+            let bytes = fetch_bytes_fresh(&url)
+                .await
+                .map_err(|error| error.to_string())?;
             crate::render::art::validate_download(&bytes, expected.as_deref())?;
             Ok::<_, String>(bytes)
         })
@@ -285,6 +348,7 @@ pub fn request_remote_art(name: &str, url: &str, expected: Option<&str>, now: f6
         .and_then(|result| result);
         match outcome {
             Ok(bytes) => {
+                remember_back(&name, expected.as_deref(), &bytes);
                 ASSET_NAMES.lock().insert(key.clone(), name);
                 ARRIVALS.lock().push((key.clone(), bytes));
                 ASSET_RETRY
@@ -476,7 +540,18 @@ fn js_error(value: wasm_bindgen::JsValue) -> String {
 
 pub(crate) async fn fetch_bytes(url: &str) -> Result<Vec<u8>, FetchError> {
     let window = web_sys::window().ok_or_else(|| FetchError::Other("no window".into()))?;
-    let value = wasm_bindgen_futures::JsFuture::from(window.fetch_with_str(url))
+    response_bytes(window.fetch_with_str(url)).await
+}
+
+async fn fetch_bytes_fresh(url: &str) -> Result<Vec<u8>, FetchError> {
+    let window = web_sys::window().ok_or_else(|| FetchError::Other("no window".into()))?;
+    let options = web_sys::RequestInit::new();
+    options.set_cache(web_sys::RequestCache::Reload);
+    response_bytes(window.fetch_with_str_and_init(url, &options)).await
+}
+
+async fn response_bytes(fetched: js_sys::Promise) -> Result<Vec<u8>, FetchError> {
+    let value = wasm_bindgen_futures::JsFuture::from(fetched)
         .await
         .map_err(|error| FetchError::Other(format!("the fetch failed: {}", js_error(error))))?;
     let response: web_sys::Response = wasm_bindgen::JsCast::dyn_into(value)

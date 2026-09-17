@@ -37,6 +37,17 @@ import one in a supported format, check the reported problems, and save it.
 Saving a deck and choosing it for a table are separate actions. A list of
 card names alone does not provide the card images.
 
+Your chosen deck stays selected for the next table or new game. It deals after
+you receive a seat; you do not need to press **choose deck** again. Reconnecting
+to a game does not deal a second copy of your deck.
+
+### Import from TCG Arena
+
+Open the deck editor, choose **import**, and paste a TCG Arena deck list,
+starter-deck JSON export, or `https://tcg-arena.fr/import?...` deck link.
+Review the resolved cards and sections, save the deck, then choose it in the
+lobby. TCG Arena `/load/` game-file links are not deck exports.
+
 ## Add an AI player
 
 AI players are available on desktop, Android, and in the browser. You must

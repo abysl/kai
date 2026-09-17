@@ -957,6 +957,8 @@ pub fn auto_deal(
     seated: Res<SeatedDeck>,
     info: Res<crate::table::SessionInfo>,
     mirror: Res<crate::table::Mirror>,
+    table: Res<crate::table::GameTable>,
+    me: Res<MySeat>,
     mut deal_requests: MessageWriter<DealDeckRequested>,
 ) {
     if !panel.auto_deal || matchmaking.active() {
@@ -967,10 +969,16 @@ pub fn auto_deal(
         return;
     };
     let table_game = crate::net::game_of_zones(&mirror.view.zones);
-    if info.active() && record.deck.game() == table_game {
-        deal_requests.write(DealDeckRequested);
+    if matches!(
+        info.role,
+        crate::table::SessionRole::Host | crate::table::SessionRole::Client
+    ) && record.deck.game() == table_game
+    {
+        if !table.0.cards().iter().any(|card| card.owner == me.0) {
+            deal_requests.write(DealDeckRequested);
+            panel.note = Some("dealing your selected deck…".into());
+        }
         panel.auto_deal = false;
-        panel.note = Some("deck dealt to your battlefield".into());
         return;
     }
     let waiting = format!(
@@ -1188,6 +1196,115 @@ pub fn full_set_controls(ui: &mut egui::Ui) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn auto_deal_app(role: crate::table::SessionRole) -> App {
+        let mut app = App::new();
+        app.init_resource::<crate::net::matchmaking::Queue>()
+            .init_resource::<crate::net::NewGameWatch>()
+            .init_resource::<crate::table::DealGeneration>()
+            .init_resource::<crate::table::GameTable>()
+            .init_resource::<MySeat>()
+            .insert_resource(crate::table::SessionInfo { role, ..default() })
+            .insert_resource(crate::table::Mirror {
+                view: agni_sim::wire::TableView {
+                    zones: agni_riftbound::zone_table(),
+                    ..default()
+                },
+                ..default()
+            })
+            .insert_resource(SeatedDeck(Some(seat(
+                parse_reply(200, &reply_fixture()).unwrap().deck,
+            ))))
+            .insert_resource(ImportPanel {
+                auto_deal: true,
+                ..default()
+            })
+            .add_message::<DealDeckRequested>()
+            .add_systems(
+                Update,
+                (crate::net::redeal_after_new_game, auto_deal).chain(),
+            );
+        app
+    }
+
+    #[test]
+    fn auto_deal_waits_for_a_seat_instead_of_consuming_the_request_while_joining() {
+        use crate::table::{SessionInfo, SessionRole};
+        for waiting in [
+            SessionRole::Starting,
+            SessionRole::Joining,
+            SessionRole::Ended,
+        ] {
+            let mut app = auto_deal_app(waiting);
+            app.update();
+            assert!(app.world().resource::<ImportPanel>().auto_deal);
+            assert!(app
+                .world()
+                .resource::<Messages<DealDeckRequested>>()
+                .is_empty());
+            app.world_mut().resource_mut::<SessionInfo>().role = SessionRole::Client;
+            app.update();
+            assert!(!app.world().resource::<ImportPanel>().auto_deal);
+            assert_eq!(
+                app.world_mut()
+                    .resource_mut::<Messages<DealDeckRequested>>()
+                    .drain()
+                    .count(),
+                1
+            );
+            app.update();
+            assert!(app
+                .world()
+                .resource::<Messages<DealDeckRequested>>()
+                .is_empty());
+        }
+    }
+
+    #[test]
+    fn reconnecting_does_not_deal_over_cards_already_at_the_table() {
+        let mut app = auto_deal_app(crate::table::SessionRole::Client);
+        app.world_mut()
+            .resource_mut::<crate::table::GameTable>()
+            .0
+            .add_face(
+                PlayerId(0),
+                agni_core::Zone::Hand,
+                CardFace::named("Already dealt"),
+            );
+        app.update();
+        assert!(!app.world().resource::<ImportPanel>().auto_deal);
+        assert!(app
+            .world()
+            .resource::<Messages<DealDeckRequested>>()
+            .is_empty());
+    }
+
+    #[test]
+    fn the_same_selected_deck_deals_at_a_second_table_and_after_a_reset() {
+        use crate::table::{DealGeneration, SessionInfo, SessionRole};
+        let mut app = auto_deal_app(SessionRole::Host);
+        for game in 0..3 {
+            if game == 1 {
+                app.world_mut().resource_mut::<SessionInfo>().role = SessionRole::Solo;
+                app.update();
+                app.world_mut().resource_mut::<SessionInfo>().role = SessionRole::Starting;
+                app.update();
+                app.world_mut().resource_mut::<SessionInfo>().role = SessionRole::Host;
+            } else if game == 2 {
+                app.world_mut().resource_mut::<DealGeneration>().0 += 1;
+            }
+            app.update();
+            assert_eq!(
+                app.world_mut()
+                    .resource_mut::<Messages<DealDeckRequested>>()
+                    .drain()
+                    .count(),
+                1
+            );
+            assert!(app.world().resource::<SeatedDeck>().0.is_some());
+            assert!(!app.world().resource::<ImportPanel>().auto_deal);
+        }
+    }
 
     fn reply_fixture() -> String {
         serde_json::json!({

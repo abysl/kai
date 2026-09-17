@@ -954,6 +954,7 @@ pub fn drain_net(
                 info.roster = session.roster();
                 refresh(&mut table, &mut mirror, session.table(), session.view());
                 host.session = Some(session);
+                generation.0 += 1;
                 my_seat.0 = PlayerId(0);
                 view.0 = PlayerId(0);
                 players.0 = 2;
@@ -1386,6 +1387,19 @@ pub fn route_redeal(
 #[derive(Resource, Default)]
 pub struct NewGameWatch {
     pub seen: u32,
+    seated: bool,
+}
+
+impl NewGameWatch {
+    fn observe(&mut self, role: SessionRole, generation: u32) -> bool {
+        let seated = matches!(role, SessionRole::Host | SessionRole::Client);
+        let fresh = seated && (!self.seated || self.seen != generation);
+        self.seated = seated;
+        if seated {
+            self.seen = generation;
+        }
+        fresh
+    }
 }
 
 pub fn redeal_after_new_game(
@@ -1394,17 +1408,10 @@ pub fn redeal_after_new_game(
     generation: Res<DealGeneration>,
     mut watch: ResMut<NewGameWatch>,
     mut panel: ResMut<crate::deck::import::ImportPanel>,
-    mut deals: MessageWriter<crate::deck::import::DealDeckRequested>,
 ) {
-    if watch.seen == generation.0 {
-        return;
+    if watch.observe(info.role, generation.0) && seated.0.is_some() {
+        panel.auto_deal = true;
     }
-    watch.seen = generation.0;
-    if seated.0.is_none() || !info.active() {
-        return;
-    }
-    let _ = &mut panel;
-    deals.write(crate::deck::import::DealDeckRequested);
 }
 
 pub fn deal_setup(
@@ -1982,6 +1989,22 @@ mod tests {
     use agni_core::{CardFace, Table};
     use agni_sim::engine::NativeEngine;
     use agni_sim::log::encode_log;
+
+    #[test]
+    fn new_tables_and_resets_rearm_the_selected_deck_only_after_seating() {
+        let mut watch = NewGameWatch::default();
+        assert!(!watch.observe(SessionRole::Starting, 0));
+        assert!(watch.observe(SessionRole::Host, 0));
+        assert!(!watch.observe(SessionRole::Host, 0));
+        assert!(watch.observe(SessionRole::Host, 1));
+        assert!(!watch.observe(SessionRole::Solo, 1));
+        assert!(!watch.observe(SessionRole::Starting, 1));
+        assert!(watch.observe(SessionRole::Host, 1));
+        assert!(!watch.observe(SessionRole::Ended, 2));
+        assert!(!watch.observe(SessionRole::Joining, 2));
+        assert!(watch.observe(SessionRole::Client, 2));
+        assert!(!watch.observe(SessionRole::Client, 2));
+    }
 
     #[test]
     fn an_enforced_lobby_never_hosts_a_free_table_when_the_plugin_is_missing() {
