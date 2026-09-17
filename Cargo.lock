@@ -132,7 +132,7 @@ dependencies = [
 [[package]]
 name = "agni-core"
 version = "0.1.0"
-source = "git+https://github.com/abysl/agni#7b4c66d63a300627b2c54d78ef40c27b1aee2fff"
+source = "git+https://github.com/abysl/agni#76ac903833c986038be6e56616633cc6d86bb1c2"
 dependencies = [
  "serde",
 ]
@@ -140,7 +140,7 @@ dependencies = [
 [[package]]
 name = "agni-deck"
 version = "0.1.0"
-source = "git+https://github.com/abysl/agni#7b4c66d63a300627b2c54d78ef40c27b1aee2fff"
+source = "git+https://github.com/abysl/agni#76ac903833c986038be6e56616633cc6d86bb1c2"
 dependencies = [
  "serde",
 ]
@@ -148,7 +148,7 @@ dependencies = [
 [[package]]
 name = "agni-engine-host"
 version = "0.1.0"
-source = "git+https://github.com/abysl/agni#7b4c66d63a300627b2c54d78ef40c27b1aee2fff"
+source = "git+https://github.com/abysl/agni#76ac903833c986038be6e56616633cc6d86bb1c2"
 dependencies = [
  "agni-sim",
  "blake3",
@@ -161,7 +161,7 @@ dependencies = [
 [[package]]
 name = "agni-importers"
 version = "0.1.0"
-source = "git+https://github.com/abysl/agni#7b4c66d63a300627b2c54d78ef40c27b1aee2fff"
+source = "git+https://github.com/abysl/agni#76ac903833c986038be6e56616633cc6d86bb1c2"
 dependencies = [
  "agni-deck",
  "agni-mtg",
@@ -176,7 +176,7 @@ dependencies = [
 [[package]]
 name = "agni-mtg"
 version = "0.1.0"
-source = "git+https://github.com/abysl/agni#7b4c66d63a300627b2c54d78ef40c27b1aee2fff"
+source = "git+https://github.com/abysl/agni#76ac903833c986038be6e56616633cc6d86bb1c2"
 dependencies = [
  "agni-core",
  "agni-deck",
@@ -186,7 +186,7 @@ dependencies = [
 [[package]]
 name = "agni-net"
 version = "0.1.0"
-source = "git+https://github.com/abysl/agni#7b4c66d63a300627b2c54d78ef40c27b1aee2fff"
+source = "git+https://github.com/abysl/agni#76ac903833c986038be6e56616633cc6d86bb1c2"
 dependencies = [
  "agni-core",
  "agni-sim",
@@ -204,12 +204,12 @@ dependencies = [
 [[package]]
 name = "agni-plugin-sdk"
 version = "0.1.0"
-source = "git+https://github.com/abysl/agni#7b4c66d63a300627b2c54d78ef40c27b1aee2fff"
+source = "git+https://github.com/abysl/agni#76ac903833c986038be6e56616633cc6d86bb1c2"
 
 [[package]]
 name = "agni-riftbound"
 version = "0.1.0"
-source = "git+https://github.com/abysl/agni#7b4c66d63a300627b2c54d78ef40c27b1aee2fff"
+source = "git+https://github.com/abysl/agni#76ac903833c986038be6e56616633cc6d86bb1c2"
 dependencies = [
  "agni-core",
  "agni-deck",
@@ -219,7 +219,7 @@ dependencies = [
 [[package]]
 name = "agni-riftbound-turns"
 version = "0.1.0"
-source = "git+https://github.com/abysl/agni#7b4c66d63a300627b2c54d78ef40c27b1aee2fff"
+source = "git+https://github.com/abysl/agni#76ac903833c986038be6e56616633cc6d86bb1c2"
 dependencies = [
  "agni-plugin-sdk",
 ]
@@ -227,7 +227,7 @@ dependencies = [
 [[package]]
 name = "agni-sim"
 version = "0.1.0"
-source = "git+https://github.com/abysl/agni#7b4c66d63a300627b2c54d78ef40c27b1aee2fff"
+source = "git+https://github.com/abysl/agni#76ac903833c986038be6e56616633cc6d86bb1c2"
 dependencies = [
  "agni-core",
  "ciborium",
