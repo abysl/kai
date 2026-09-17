@@ -2226,7 +2226,7 @@ mod tests {
         );
         let mine = strip_state(&view, 1).unwrap();
         assert!(
-            matches!(mine, StripState::Prompt { ref question, ref chips, cancel: Some(1), .. } if question == "pay 2 energy to keep {card 71}?" && chips == &[0])
+            matches!(mine, StripState::Prompt { ref question, ref chips, cancel: None, .. } if question == "pay 2 energy to keep {card 71}?" && chips == &[0, 1])
         );
         view.affordances.remove(0);
         assert_eq!(
