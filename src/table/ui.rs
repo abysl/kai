@@ -14,6 +14,43 @@ pub fn pile_target(hovered: Option<CardId>, selected: Option<CardId>) -> Option<
     hovered.or(selected)
 }
 
+fn pile_preview_name<'a>(card: &'a agni_core::Card, view: &TableView) -> Option<&'a str> {
+    let Zone::Plugin(zone) = card.zone else {
+        return None;
+    };
+    let public_discard = view.zones.iter().any(|decl| {
+        decl.id == zone
+            && decl.kind == ZoneKind::Discard
+            && decl.visibility == agni_sim::wire::ZoneVisibility::All
+    });
+    (public_discard && !card.face.is_hidden() && !sync::lies_facedown_in(card, view))
+        .then_some(card.face.name.as_str())
+}
+
+fn pile_actions(view: &agni_sim::wire::PluginView, me: PlayerId, card: CardId) -> Vec<usize> {
+    if view
+        .prompt
+        .as_ref()
+        .is_some_and(|prompt| prompt.seat != me.0)
+    {
+        return Vec::new();
+    }
+    view.shown()
+        .filter(|(index, affordance)| {
+            affordance.enabled
+                && affordance.card == Some(card.0)
+                && matches!(affordance.kind, agni_sim::wire::AffordanceKind::Plain)
+                && !plugin_ui::menu_only(view, *index)
+        })
+        .map(|(index, _)| index)
+        .collect()
+}
+
+fn pile_preview_size(width: f32, height: f32) -> egui::Vec2 {
+    let width = width.max(0.0).min(240.0).min(height.max(0.0) / 1.4);
+    egui::vec2(width, width * 1.4)
+}
+
 pub(super) fn card_label_ui(
     mut contexts: EguiContexts,
     camera: Query<(&Camera, &GlobalTransform), With<Camera3d>>,
@@ -415,6 +452,9 @@ pub(super) fn pile_sheet_ui(
     seat_colors: Res<colors::SeatColors>,
     info: Res<SessionInfo>,
     menu: Res<crate::menu::Menu>,
+    panel: Res<plugin_ui::PluginPanel>,
+    mut art: hud::Art,
+    mut sender: hud::Sender,
 ) -> Result {
     let Some((zone, seat)) = pile_sheet.0 else {
         pile_hover.0 = None;
@@ -427,7 +467,11 @@ pub(super) fn pile_sheet_ui(
         pile_selected.0 = None;
         return Ok(());
     }
-    let Some(decl) = mirror.view.zones.iter().find(|decl| decl.id == zone) else {
+    let Some(decl) = mirror.view.zones.iter().find(|decl| {
+        decl.id == zone
+            && decl.kind == ZoneKind::Discard
+            && decl.visibility == agni_sim::wire::ZoneVisibility::All
+    }) else {
         pile_sheet.0 = None;
         pile_hover.0 = None;
         pile_selected.0 = None;
@@ -444,6 +488,7 @@ pub(super) fn pile_sheet_ui(
     pile_hover.0 = None;
     pile_selected.0 = pile_selected.0.filter(|id| ids.contains(id));
     let mut open = true;
+    let mut fire = None;
     hud::sheet(
         &context,
         "pile sheet",
@@ -462,17 +507,74 @@ pub(super) fn pile_sheet_ui(
                 } else {
                     label
                 };
-                let response = ui.add(egui::Label::new(text).sense(egui::Sense::click()));
+                let response = ui.add_sized(
+                    egui::vec2(ui.available_width(), hud::TOUCH_MIN),
+                    egui::Button::new(text)
+                        .selected(pile_selected.0 == Some(*id))
+                        .wrap(),
+                );
                 if response.hovered() {
                     pile_hover.0 = Some(*id);
                 }
                 if response.clicked() {
                     pile_selected.0 = Some(*id);
                 }
+                if hud.0.class.is_phone() && pile_selected.0 == Some(*id) {
+                    if let Some(name) = table
+                        .get(*id)
+                        .and_then(|card| pile_preview_name(card, &mirror.view))
+                    {
+                        if let Some(texture) = art.texture(&mut contexts, name) {
+                            let size = pile_preview_size(
+                                ui.available_width(),
+                                context.content_rect().height() * 0.4,
+                            );
+                            ui.image(egui::load::SizedTexture::new(texture, size));
+                        } else {
+                            ui.label(egui::RichText::new("art unavailable").weak());
+                        }
+                    }
+                }
+                if info.role != SessionRole::Ended {
+                    ui.horizontal_wrapped(|ui| {
+                        for index in pile_actions(&panel.view, my_seat.0, *id) {
+                            let label = plugin_ui::expand(
+                                &plugin_ui::answer_label(&panel.view, my_seat.0 .0, index),
+                                &|seat| {
+                                    colors::seat_label(
+                                        &info.roster,
+                                        &seat_colors,
+                                        my_seat.0,
+                                        PlayerId(seat),
+                                    )
+                                    .0
+                                },
+                                &|zone| plugin_ui::zone_label(&mirror.view.zones, zone),
+                                &|card| plugin_ui::card_label(table, &mirror.view, my_seat.0, card),
+                            );
+                            if ui
+                                .add(
+                                    egui::Button::new(label)
+                                        .min_size(egui::vec2(hud::TOUCH_MIN, hud::TOUCH_MIN))
+                                        .wrap(),
+                                )
+                                .clicked()
+                            {
+                                fire = Some(index);
+                            }
+                        }
+                    });
+                }
             }
         },
     );
     if !open {
+        pile_sheet.0 = None;
+        pile_hover.0 = None;
+        pile_selected.0 = None;
+    }
+    if let Some(index) = fire {
+        sender.fire(&panel.view.affordances[index]);
         pile_sheet.0 = None;
         pile_hover.0 = None;
         pile_selected.0 = None;
@@ -903,6 +1005,97 @@ mod hud_tests {
         let tapped = Some(CardId(7));
         assert_eq!(pile_target(None, tapped), tapped);
         assert_eq!(pile_target(Some(CardId(8)), tapped), Some(CardId(8)));
+    }
+
+    #[test]
+    fn pile_previews_require_public_revealed_discard_faces_for_either_seat() {
+        let mut table = Table::new();
+        let mut view = TableView {
+            zones: agni_riftbound::zone_table(),
+            ..Default::default()
+        };
+        let trash = Zone::Plugin(agni_riftbound::ZONE_TRASH);
+        for seat in [PlayerId(0), PlayerId(1)] {
+            let id = table.add_face(seat, trash, agni_core::CardFace::named("Public spell"));
+            let card = table.get(id).unwrap();
+            assert_eq!(pile_preview_name(card, &view), None);
+            view.revealed.push(id.0);
+            assert_eq!(pile_preview_name(card, &view), Some("Public spell"));
+            let concealed = agni_core::Card {
+                face: agni_core::CardFace::hidden(),
+                ..card.clone()
+            };
+            assert_eq!(pile_preview_name(&concealed, &view), None);
+            let hand_card = agni_core::Card {
+                zone: Zone::Plugin(agni_riftbound::ZONE_HAND),
+                ..card.clone()
+            };
+            assert_eq!(pile_preview_name(&hand_card, &view), None);
+        }
+        view.zones
+            .iter_mut()
+            .find(|decl| decl.id == agni_riftbound::ZONE_TRASH)
+            .unwrap()
+            .visibility = agni_sim::wire::ZoneVisibility::Owner;
+        for card in table.cards() {
+            assert_eq!(pile_preview_name(card, &view), None);
+        }
+    }
+
+    #[test]
+    fn pile_actions_preserve_offered_bytes_and_exclude_unavailable_actions() {
+        use agni_sim::wire::{Affordance, AffordanceKind, PromptSummary};
+        let card = CardId(7);
+        let offered = Affordance {
+            label: "Reflow {card 7}".into(),
+            card: Some(card.0),
+            enabled: true,
+            data: vec![12, 34, 56].into(),
+            ..Default::default()
+        };
+        let mut view = PluginView {
+            affordances: vec![
+                offered.clone(),
+                Affordance {
+                    enabled: false,
+                    ..offered.clone()
+                },
+                offered.clone(),
+                Affordance {
+                    card: Some(8),
+                    ..offered.clone()
+                },
+                Affordance {
+                    kind: AffordanceKind::Reveal { roll: 1 },
+                    ..offered.clone()
+                },
+            ],
+            hidden: vec![2],
+            ..Default::default()
+        };
+        assert_eq!(pile_actions(&view, PlayerId(0), card), vec![0]);
+        assert_eq!(
+            view.affordances[pile_actions(&view, PlayerId(0), card)[0]],
+            offered
+        );
+        view.prompt = Some(PromptSummary {
+            seat: 0,
+            ..Default::default()
+        });
+        assert_eq!(pile_actions(&view, PlayerId(0), card), vec![0]);
+        assert!(pile_actions(&view, PlayerId(1), card).is_empty());
+        view.affordances.clear();
+        assert!(pile_actions(&view, PlayerId(0), card).is_empty());
+    }
+
+    #[test]
+    fn inline_pile_preview_fits_portrait_and_short_landscape_phones() {
+        for (width, height) in [(288.0, 256.0), (608.0, 128.0), (100.0, 256.0)] {
+            let size = pile_preview_size(width, height);
+            assert!(size.x > 0.0 && size.y > 0.0);
+            assert!(size.x <= width && size.y <= height);
+            assert!((size.y / size.x - 1.4).abs() < 0.001);
+        }
     }
 
     #[test]

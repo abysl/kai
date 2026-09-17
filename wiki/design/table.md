@@ -39,7 +39,16 @@ reveal the face.
 Discard labels and an open prompt's counted trash buttons open a browse sheet
 for either visible player's public discard.
 Hovering a listed card or a chain thumbnail drives the inspector only when the
-accepted view permits its face. Large prompt option sets open a searchable
+accepted view permits its face. Tapping a discard row selects it for inspection;
+on phones the sheet renders its image inline, because the desktop inspector is
+absent. Only revealed, non-hidden faces in public discard zones reach the image
+lookup. The inline image fits both portrait and short landscape phone layouts.
+Separate touch-sized row buttons expose the currently shown, enabled plain
+plugin affordances naming that card, including trash actions and prompt answers
+when offered. They send the unchanged affordance through the HUD sender; tapping
+the card name never plays it. There are no row actions during another seat's
+prompt or after the session ends, and no moves are manufactured from pile contents.
+Large prompt option sets open a searchable
 selector over the existing affordances; its choices still emit those
 affordances and never synthesize an intent.
 Yes/no prompts reserve `1` for yes and `2` for no, regardless of a game's
