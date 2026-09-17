@@ -1186,7 +1186,7 @@ fn chip_button(ui: &mut egui::Ui, label: &str, hollow: bool, digit: Option<usize
 }
 
 #[allow(clippy::too_many_arguments)]
-pub fn plugin_ui(
+pub(super) fn plugin_ui(
     mut contexts: EguiContexts,
     hud: Res<super::hud::Hud>,
     panel: Res<PluginPanel>,

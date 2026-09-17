@@ -1206,7 +1206,7 @@ mod tests {
             .init_resource::<MySeat>()
             .insert_resource(crate::table::SessionInfo { role, ..default() })
             .insert_resource(crate::table::Mirror {
-                view: agni_sim::wire::TableView {
+                view: agni_sim::view::TableView {
                     zones: agni_riftbound::zone_table(),
                     ..default()
                 },
