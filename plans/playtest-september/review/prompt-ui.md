@@ -25,6 +25,9 @@ public visible card name plus matching catalog group names, tags, and rules
 text; The List's offered tag labels remain the authoritative selectable list.
 Yes/no prompt hotkeys are normalized in Kai so dispatch, visual labels,
 keyboard claiming, cancel detection, and strip digit handling all use `1`/`2`.
+Selector metadata terms are cached per prompt and catalog generation, and are
+only built after a non-empty search. Card options may match public catalog tags
+and rules text; hidden card faces contribute only the face-down label.
 
 ## Tests
 

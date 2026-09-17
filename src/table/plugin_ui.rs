@@ -630,6 +630,8 @@ pub const SELECTOR_MIN_OPTIONS: usize = 10;
 pub struct PromptSelector {
     pub search: String,
     pub key: Option<String>,
+    pub catalog_generation: u32,
+    pub terms: Vec<String>,
     pub open: bool,
 }
 
@@ -699,7 +701,6 @@ pub fn selector_search(
             {
                 terms.push(group.name.clone());
                 terms.extend(group.tags.iter().cloned());
-                terms.push(group.text_lower.clone());
             }
         }
     }
@@ -719,6 +720,20 @@ pub fn selector_key(view: &PluginView, options: &[usize]) -> String {
         .collect::<Vec<_>>()
         .join("\u{1f}");
     format!("{question}\u{1e}{labels}")
+}
+
+pub fn selector_terms(
+    view: &PluginView,
+    options: &[usize],
+    table: &Table,
+    mirror: &Mirror,
+    me: PlayerId,
+    catalog: &crate::deck::catalog::Catalog,
+) -> Vec<String> {
+    options
+        .iter()
+        .map(|index| selector_search(view, *index, table, mirror, me, catalog))
+        .collect()
 }
 
 pub fn prompt_selector_ui(
@@ -748,6 +763,7 @@ pub fn prompt_selector_ui(
     if selector.key.as_deref() != Some(&key) {
         selector.key = Some(key);
         selector.search.clear();
+        selector.terms.clear();
         selector.open = true;
     }
     if !selector.open {
@@ -769,25 +785,37 @@ pub fn prompt_selector_ui(
                     .hint_text("search choices")
                     .desired_width(f32::INFINITY),
             );
+            if !selector.search.trim().is_empty()
+                && (selector.terms.len() != options.len()
+                    || selector.catalog_generation != catalog.generation
+                    || table.is_changed()
+                    || mirror.is_changed())
+            {
+                selector.terms = selector_terms(
+                    &panel.view,
+                    &options,
+                    &table.0,
+                    &mirror,
+                    my_seat.0,
+                    &catalog,
+                );
+                selector.catalog_generation = catalog.generation;
+            }
             egui::ScrollArea::vertical()
                 .id_salt("prompt selector options")
                 .max_height(440.0)
                 .show(ui, |ui| {
-                    for index in &options {
+                    for (slot, index) in options.iter().enumerate() {
                         let label = panel.view.affordances[*index]
                             .card
                             .map(|card| card_label(&table.0, &mirror.view, my_seat.0, card))
                             .unwrap_or_else(|| answer_label(&panel.view, my_seat.0 .0, *index));
-                        let search = selector_search(
-                            &panel.view,
-                            *index,
-                            &table.0,
-                            &mirror,
-                            my_seat.0,
-                            &catalog,
-                        );
-                        if selector_matches(&search, &selector.search) && ui.button(label).clicked()
-                        {
+                        let matches = selector.search.trim().is_empty()
+                            || selector
+                                .terms
+                                .get(slot)
+                                .is_some_and(|terms| selector_matches(terms, &selector.search));
+                        if matches && ui.button(label).clicked() {
                             picked = Some(*index);
                         }
                     }
@@ -2678,6 +2706,53 @@ mod strip_tests {
         let options = selector_options(&view, 0);
         assert_eq!(options.len(), SELECTOR_MIN_OPTIONS);
         assert!(!options.contains(&3));
+    }
+
+    #[test]
+    fn card_choices_search_public_catalog_tags_and_rules_without_hidden_faces() {
+        use agni_importers::riftbound::catalog::{CardKind, CatalogCard};
+        use agni_sim::wire::{ZoneDecl, ZoneVisibility};
+
+        let catalog = crate::deck::catalog::Catalog::from_cards(
+            vec![CatalogCard {
+                name: "Lonely Poro".into(),
+                riftbound_id: "sfd-036-221".into(),
+                kind: CardKind::Unit,
+                tags: vec!["Poro".into()],
+                text: Some("growl at dawn".into()),
+                ..Default::default()
+            }],
+            crate::deck::catalog::Source::Store(0),
+        );
+        let mut table = Table::new();
+        let shown = table.add_face(PlayerId(0), Zone::Board, CardFace::named("Lonely Poro"));
+        let view = PluginView {
+            affordances: vec![offer("{card 1}", None, Some(shown.0))],
+            ..Default::default()
+        };
+        let terms = selector_search(&view, 0, &table, &Mirror::default(), PlayerId(0), &catalog);
+        assert!(selector_matches(&terms, "poro"));
+        assert!(selector_matches(&terms, "growl"));
+
+        let hidden = table.add_face(PlayerId(1), Zone::Plugin(9), CardFace::named("Hidden Poro"));
+        let hidden_view = PluginView {
+            affordances: vec![offer("{card 2}", None, Some(hidden.0))],
+            ..Default::default()
+        };
+        let mirror = Mirror {
+            view: TableView {
+                zones: vec![ZoneDecl {
+                    id: 9,
+                    visibility: ZoneVisibility::All,
+                    ..Default::default()
+                }],
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let hidden_terms = selector_search(&hidden_view, 0, &table, &mirror, PlayerId(0), &catalog);
+        assert!(selector_matches(&hidden_terms, FACE_DOWN));
+        assert!(!hidden_terms.contains("Hidden Poro"));
     }
 
     #[test]

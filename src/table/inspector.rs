@@ -92,7 +92,7 @@ pub fn face_size(slot: egui::Rect, wide: bool, scale: f32) -> egui::Vec2 {
 }
 
 #[derive(SystemParam)]
-struct InspectorInputs<'w, 's> {
+pub(super) struct InspectorInputs<'w, 's> {
     hud: Res<'w, Hud>,
     held: Res<'w, Held>,
     table: Res<'w, GameTable>,
@@ -132,8 +132,6 @@ pub(super) fn inspector_ui(
     mut art_cache: ResMut<art::ArtCache>,
     mut images: ResMut<Assets<Image>>,
     mut registry: ResMut<crate::render::egui_art::EguiArt>,
-    hovered: Query<(&CardArt, Option<&Landscape>, &CardView), (With<Hovered>, With<CardView>)>,
-    cards: Query<(&CardArt, Option<&Landscape>, &CardView), With<CardView>>,
 ) -> Result {
     let Some(slot) = input.hud.0.inspector else {
         return Ok(());
