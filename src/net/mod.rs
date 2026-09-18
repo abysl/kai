@@ -1,3 +1,4 @@
+pub mod chat;
 pub mod defaults;
 #[cfg(target_arch = "wasm32")]
 pub mod gateway;
@@ -292,6 +293,7 @@ struct Conns {
 
 #[derive(Resource, Default)]
 pub struct HostState {
+    chat: chat::Relay,
     session: Option<HostSession>,
     conns: Conns,
     conn_nodes: BTreeMap<u64, String>,
@@ -309,6 +311,7 @@ impl HostState {
 
 impl HostState {
     fn clear(&mut self) {
+        self.chat = Default::default();
         self.undo_sent = None;
         self.session = None;
         self.conns.clear();
@@ -399,10 +402,19 @@ impl HostState {
         conn: u64,
         msg: ClientMsg,
     ) -> bool {
+        if let ClientMsg::Chat { ref text } = msg {
+            if let Some(&seat) = self.conns.seats.get(&conn) {
+                if let Err(text) = self.publish_chat(info, seat, text) {
+                    send_to(conn, HostMsg::Notice { text });
+                }
+            }
+            return false;
+        }
         let Some(session) = self.session.as_mut() else {
             return false;
         };
         match msg {
+            ClientMsg::Chat { .. } => false,
             ClientMsg::RequestUndo { actions, revision } => {
                 let Some(&seat) = self.conns.seats.get(&conn) else {
                     return false;
@@ -837,6 +849,7 @@ pub fn drain_net(
             let returning = matches!(&info.recovery, Recovery::Rejoin { host } if host == &host_id);
             client.session = None;
             client.pending = None;
+            info.chat = Default::default();
             crate::engine::modules::reset_fetches();
             info.role = SessionRole::Joining;
             info.recovery = Recovery::Rejoin {
@@ -869,6 +882,7 @@ pub fn drain_net(
                 view.0 = PlayerId(0);
             }
             NetToGame::HostReady => {
+                info.chat = Default::default();
                 let (engine, engine_note) = match crate::engine::hosting_engine() {
                     Ok(engine) => engine,
                     Err(reason) => {
@@ -1171,6 +1185,7 @@ fn handle_host_msg(
         _ => msg,
     };
     match msg {
+        HostMsg::Chat { id, seat, text } => info.chat.receive(id, seat, text),
         HostMsg::Undo { status } => info.undo = status,
         HostMsg::RolledBack { next_seq, faces } => {
             if let Some(session) = client.session.as_mut() {

@@ -53,7 +53,7 @@ impl Tab {
 }
 
 pub fn chat_available() -> bool {
-    cfg!(not(target_arch = "wasm32"))
+    true
 }
 
 pub fn available(tab: Tab, free: bool) -> bool {
@@ -440,10 +440,10 @@ pub fn chat_line(ui: &mut egui::Ui, line: &str) {
     }
 }
 
-pub fn chat_tab(ui: &mut egui::Ui, lobby: &mut crate::ai::seat::AiLobby) {
+pub fn chat_tab(ui: &mut egui::Ui, lobby: &mut crate::ai::seat::AiLobby, info: &SessionInfo) {
     use crate::ai::seat;
     let status = seat::status();
-    let lines = seat::chat_lines();
+    let lines = &info.chat.lines;
     let mut send = false;
     let mut switch = false;
     let mut stop = false;
@@ -465,7 +465,7 @@ pub fn chat_tab(ui: &mut egui::Ui, lobby: &mut crate::ai::seat::AiLobby) {
         }
         None => {
             ui.label(
-                egui::RichText::new("no AI player at the table — add one from the lobby")
+                egui::RichText::new("table chat · everyone at this table can read messages")
                     .color(hud::INK_WEAK),
             );
         }
@@ -475,8 +475,14 @@ pub fn chat_tab(ui: &mut egui::Ui, lobby: &mut crate::ai::seat::AiLobby) {
         .max_height(ui.available_height() - 96.0)
         .stick_to_bottom(true)
         .show(ui, |ui| {
-            for line in &lines {
-                chat_line(ui, line);
+            for line in lines {
+                let name = info
+                    .roster
+                    .iter()
+                    .find(|p| p.seat == line.seat)
+                    .map(|p| p.name.clone())
+                    .unwrap_or_else(|| format!("player {}", line.seat + 1));
+                ui.label(format!("{name}: {}", line.text));
             }
             if lines.is_empty() {
                 ui.label(
@@ -488,8 +494,9 @@ pub fn chat_tab(ui: &mut egui::Ui, lobby: &mut crate::ai::seat::AiLobby) {
     ui.horizontal(|ui| {
         let response = ui.add(
             egui::TextEdit::singleline(&mut lobby.draft)
-                .hint_text("message the AI")
-                .desired_width(CHAT_INPUT_W),
+                .hint_text("message everyone at the table")
+                .char_limit(2000)
+                .desired_width((ui.available_width() - 64.0).max(80.0)),
         );
         if response.lost_focus() && ui.input(|input| input.key_pressed(egui::Key::Enter)) {
             send = true;
@@ -498,6 +505,7 @@ pub fn chat_tab(ui: &mut egui::Ui, lobby: &mut crate::ai::seat::AiLobby) {
             send = true;
         }
     });
+    ui.label(egui::RichText::new("Messages may be sent to the provider of any AI at this table. Never share API keys here.").small().weak());
     ui.horizontal_wrapped(|ui| {
         ui.label(egui::RichText::new("switch model").weak());
         switch = lobby.credentials.provider == crate::ai::provider::Provider::NanoGpt
@@ -513,11 +521,9 @@ pub fn chat_tab(ui: &mut egui::Ui, lobby: &mut crate::ai::seat::AiLobby) {
     }
     let live = status.as_ref().filter(|status| status.alive);
     if send && !lobby.draft.trim().is_empty() {
-        if live.is_some_and(|status| !status.kind.is_llm()) {
-            lobby.status = seat::FREE_BRAIN_DEAF.into();
-        } else {
-            seat::say(&lobby.draft);
-            lobby.draft.clear();
+        match info.chat.send(&lobby.draft) {
+            Ok(()) => lobby.draft.clear(),
+            Err(error) => lobby.status = error,
         }
     }
     if switch {
@@ -591,7 +597,7 @@ pub(super) fn drawer_ui(
                     });
             }
             Tab::Chat => {
-                chat_tab(ui, &mut lobby);
+                chat_tab(ui, &mut lobby, &seats.info);
             }
             Tab::Tokens => {
                 egui::ScrollArea::vertical()

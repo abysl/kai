@@ -1,5 +1,6 @@
 pub mod brain;
 pub mod cards;
+pub mod decks;
 pub mod driver;
 pub mod hold;
 #[cfg(not(target_arch = "wasm32"))]

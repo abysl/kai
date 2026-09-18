@@ -493,7 +493,7 @@ pub fn register(app: &mut App) {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-mod platform {
+pub(crate) mod platform {
     use super::{pool_catalog, Catalog, Source, STORE_POLL_SECS};
     use agni_importers::riftbound::ingest::{self, REF_NAME};
     use bevy::prelude::*;
@@ -570,7 +570,7 @@ mod platform {
 }
 
 #[cfg(target_arch = "wasm32")]
-mod platform {
+pub(crate) mod platform {
     use super::{pool_catalog, Catalog, Source};
     use bevy::prelude::*;
 

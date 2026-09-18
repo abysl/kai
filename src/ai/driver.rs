@@ -144,6 +144,8 @@ pub struct Seat {
     pub roster: Vec<SeatInfo>,
     pub seat: u8,
     pub deck: Option<SeatedDeckRecord>,
+    pub draft: Option<crate::deck::editor::Draft>,
+    pub next_deck: Option<ImportedDeck>,
     pub secrets: RollSecrets,
     pub last_view: PluginView,
     pub last_seq: u64,
@@ -158,6 +160,8 @@ pub struct Seat {
     pub undo: agni_net::session::UndoStatus,
     pub undo_voted: Option<u64>,
     pub rolled_back: bool,
+    pub messages: Vec<String>,
+    pub fresh_chat: bool,
 }
 
 impl Default for Seat {
@@ -175,6 +179,8 @@ impl Seat {
             roster: Vec::new(),
             seat: 0,
             deck: None,
+            draft: None,
+            next_deck: None,
             secrets: RollSecrets::default(),
             last_view: PluginView::default(),
             last_seq: u64::MAX,
@@ -189,6 +195,8 @@ impl Seat {
             undo: Default::default(),
             undo_voted: None,
             rolled_back: false,
+            messages: Vec::new(),
+            fresh_chat: false,
         }
     }
 
@@ -653,6 +661,18 @@ pub fn handle_event(seat: &mut Seat, event: NetToGame, out: &mut Out) {
         NetToGame::Connected => out.line("connected — waiting for a seat"),
         NetToGame::FromHost { msg } => match absorb_while_pending(seat, msg) {
             None => {}
+            Some(HostMsg::Chat {
+                seat: sender, text, ..
+            }) => {
+                if sender != seat.seat {
+                    let message = format!("{}: {text}", seat.seat_name(sender));
+                    seat.messages.push(message);
+                    if seat.messages.len() > 30 {
+                        seat.messages.remove(0);
+                    }
+                    seat.fresh_chat = true;
+                }
+            }
             Some(HostMsg::Undo { status }) => seat.undo = status,
             Some(HostMsg::RolledBack { next_seq, faces }) => {
                 if let Some(session) = seat.session.as_mut() {
@@ -987,11 +1007,19 @@ pub fn choose(seat: &mut Seat, link: &mut dyn Link, out: &mut Out, choice: Choic
 }
 
 pub fn run_command(seat: &mut Seat, link: &mut dyn Link, line: &str, out: &mut Out) -> bool {
+    if let Some(args) = line.strip_prefix("deck-action ") {
+        super::decks::command(seat, link, args, out);
+        return true;
+    }
     let words: Vec<&str> = line.split_whitespace().collect();
     let Some((&verb, rest)) = words.split_first() else {
         return true;
     };
     match verb {
+        "say" => match agni_net::session::chat_text(line.strip_prefix("say").unwrap_or_default()) {
+            Ok(text) => link.send(ClientMsg::Chat { text }),
+            Err(error) => out.line(error),
+        },
         "quit" | "exit" => return false,
         "help" => {
             out.line(
@@ -1740,6 +1768,9 @@ impl Driver {
             return self.seat.ended.is_none() && !link.closed();
         }
         if std::mem::take(&mut self.seat.new_game) {
+            if let Some(deck) = self.seat.next_deck.take() {
+                seat_deck(&mut self.seat, deck, Some(0));
+            }
             self.auto_deal = self.seat.deck.is_some();
             self.last_decision = None;
             self.sent = None;
@@ -1805,7 +1836,8 @@ impl Driver {
 
     #[cfg(not(target_arch = "wasm32"))]
     fn steer(&mut self, link: &mut dyn Link, brain: &mut Brain) {
-        let fresh = self.chat.poll(brain, &mut self.out);
+        let fresh =
+            self.chat.poll(brain, &mut self.out) | std::mem::take(&mut self.seat.fresh_chat);
         let in_game =
             self.seat.session.is_some() && self.seat.dealt && self.seat.last_view.winner.is_none();
         let step = if in_game {
@@ -1955,7 +1987,12 @@ pub fn think(
         state,
         card_names,
         zone_names,
-        messages: chat.messages.clone(),
+        messages: chat
+            .messages
+            .iter()
+            .chain(seat.messages.iter())
+            .cloned()
+            .collect(),
         decks,
         deck_loaded: seat
             .deck
@@ -1978,11 +2015,21 @@ pub fn think(
             out.line(format!("ai> {line}"));
             if let Some(text) = line.strip_prefix("say ") {
                 chat.say(text);
+                run_command(seat, link, line, out);
                 return "said".to_string();
             }
-            run_command(seat, link, line, out);
+            let mut captured = Out::capture();
+            run_command(seat, link, line, &mut captured);
+            let results = captured.take();
+            for result in &results {
+                out.line(result);
+            }
+            if line.starts_with("deck-action ") {
+                return results.join("\n");
+            }
             settle(seat, link, out, SETTLE_TICKS, halted);
             let mut lines = snapshot(seat);
+            lines.splice(0..0, results);
             if actionable(&seat.last_view).is_empty() {
                 lines.push(DECISION_OVER.to_string());
             }
