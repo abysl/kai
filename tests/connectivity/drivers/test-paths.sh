@@ -21,6 +21,9 @@ printf 'kai_autoplay\n' >"$kai/web/dist/hand.js"
 
 stubs="$work/stubs"
 mkdir -p "$stubs"
+for command in bash cat dirname grep mkdir mkfifo python3 rm sed tee timeout; do
+  ln -s "$(command -v "$command")" "$stubs/$command"
+done
 cat >"$stubs/npx" <<'STUB'
 #!/usr/bin/env bash
 pwd >"$STUB_RECORD"
@@ -43,7 +46,8 @@ driver() {
   local name=$1 record=$2
   (
     cd "$caller"
-    PATH="$stubs:$PATH" KAI_BIN="$stubs/kai" DISPLAY=:99 STUB_RECORD="$record" \
+    unset KAI_WEB_DIST AGNI_ENGINE_WASM AGNI_RIFTBOUND_WASM
+    PATH="$stubs" KAI_BIN="$stubs/kai" DISPLAY=:99 STUB_RECORD="$record" \
       timeout 20 bash "$kai/tests/connectivity/drivers/$name.sh" "target/connectivity/$name-demo" "$plan"
   )
 }
