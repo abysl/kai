@@ -9,11 +9,6 @@ plan=${2:?usage: desktop.sh <run-dir> <plan-json>}
 mkdir -p "$run_dir"
 run_dir=$(cd "$run_dir" && pwd)
 
-if [[ -n ${KAI_DRIVER_RESOLVE_ONLY:-} ]]; then
-  printf '%s\n' "$run_dir"
-  exit 0
-fi
-
 kai_bin=${KAI_BIN:-${CARGO_TARGET_DIR:-$kai_root/target}/debug/kai}
 name=$(printf '%s' "$plan" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("name", "autoplay"))')
 

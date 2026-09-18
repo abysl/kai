@@ -15,9 +15,13 @@ Use separate run directories and stores for every client.
 A driver receives its run directory as the first argument and resolves it to
 an absolute path before it changes directory, re-execs itself, or launches
 the client: the directory belongs to the caller's location, not the
-driver's. `KAI_DRIVER_RESOLVE_ONLY=1` makes a driver print that resolution
-and exit, which is what `tests/connectivity/drivers/test-paths.sh` asserts
-from a foreign working directory; the fast check runs that test.
+driver's. `tests/connectivity/drivers/test-paths.sh` checks this without
+starting real clients: it copies the drivers into a fixture tree and runs
+them from a foreign working directory with stub commands (a stub `npx`,
+`devenv`, and client binary), asserting that the web output lands across
+its directory change, that the Android re-exec forwards absolute
+arguments, and that the desktop client is launched with caller-absolute
+paths. The fast check runs it.
 
 Drivers translate the application's `KAI_EVENT` records into a common event
 stream. Preserve raw platform logs for failures. An absent outcome is not a
