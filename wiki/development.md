@@ -104,6 +104,13 @@ the built Riftbound plugin at `assets/plugins/riftbound.wasm`, or its path in
 Use `KAI_OPEN=ai-settings` with the screenshot harness to open the credential
 sheet without creating a table. Never capture a real API key.
 
+Personal Elo changes need `cargo test --locked --lib elo::` and a browser compile
+check using `RUSTFLAGS='--cfg getrandom_backend="wasm_js"' cargo check --locked
+--target wasm32-unknown-unknown --lib`. The focused tests cover calculations,
+validation, disk reload, undo/correction, history retention, and failed saves.
+Use `KAI_OPEN=personal-elo` with `KAI_WINDOW` and `KAI_SHOT` to capture the settings
+panel with synthetic data. Check pointer and touch input at narrow and wide sizes.
+
 ## Formatting
 
 treefmt runs the configured language formatters for this repository. With Nix

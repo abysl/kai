@@ -61,6 +61,7 @@ pub fn parse_shot_frame(spec: Option<&str>) -> u32 {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Open {
     Matchmaking,
+    PersonalElo,
     AiSettings,
     DeckBox,
     Decks,
@@ -79,6 +80,9 @@ pub fn parse_open(spec: &str) -> Option<Open> {
     let what = parts.next()?;
     if what == "matchmaking" {
         return parts.next().is_none().then_some(Open::Matchmaking);
+    }
+    if what == "personal-elo" {
+        return parts.next().is_none().then_some(Open::PersonalElo);
     }
     if what == "ai-settings" {
         return parts.next().is_none().then_some(Open::AiSettings);
@@ -238,6 +242,7 @@ fn open_on_request(
     mut editor: ResMut<crate::deck::editor::DeckEditor>,
     mut ai: ResMut<crate::ai::seat::AiLobby>,
     mut opponent: ResMut<crate::menu::Opponent>,
+    mut settings: ResMut<crate::settings::Settings>,
 ) {
     if frames.0 < OPEN_FRAME {
         return;
@@ -246,6 +251,11 @@ fn open_on_request(
         Some(Open::Matchmaking) => {
             menu.open_lobby(crate::net::TableGame::FreeForm);
             opponent.segment = Some(crate::menu::Segment::Match);
+            return;
+        }
+        Some(Open::PersonalElo) => {
+            settings.open = true;
+            settings.tab = crate::settings::Tab::You;
             return;
         }
         Some(Open::AiSettings) => {
