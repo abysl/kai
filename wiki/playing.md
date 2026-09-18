@@ -4,6 +4,30 @@ Audience: players with an installed or running copy of Kai. No programming
 knowledge is needed. For installation from source, use the
 [development guide](development.md).
 
+## Track your personal Elo
+
+Open **Settings → You → personal Elo**. This is an honor-based personal estimate,
+starting at **1200**, saved only on this device (or this browser's site storage).
+After a game, enter your opponent's self-reported **pre-game** Elo, select your
+own **win**, **loss**, or **draw**, check the preview, then press **record result
+locally**. Record games in order: the current estimate is your pre-game rating.
+Each player records independently; playing P2P does not require recording results.
+
+The estimate uses ordinary Elo with **K=32**, rounding each change to the nearest
+whole point, with halves away from zero. An equal-rated win adds 16; a loss
+subtracts 16; a draw changes nothing. Enter whole-number opponent ratings between
+-10000 and 10000. One estimate is shared across games in this installation.
+
+**Recent results** explains the latest 50 changes. **Undo latest result** restores
+the previous estimate and fills the form so you can correct and re-enter it.
+For an older retained mistake, undo back to it, then re-enter the corrected result
+and later results in order. Older entries outside the 50-result window cannot be
+undone. Use one running instance or browser tab; estimates do not sync between
+devices. Clearing app/site data removes the estimate and history.
+
+This feature is a personal record, with no verified ranking or leaderboard.
+See the [calculation and storage details](design/personal-elo.md).
+
 ## Undo a mistake
 
 At a hosted table, press **Shift+Backspace** or **Ctrl+Z** once for each action

@@ -4,6 +4,7 @@ pub mod ai;
 pub mod app;
 pub mod autoplay;
 pub mod deck;
+pub mod elo;
 pub mod engine;
 pub mod help;
 pub mod menu;

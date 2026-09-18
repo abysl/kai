@@ -98,6 +98,7 @@ pub struct Settings {
     pub open: bool,
     pub tab: Tab,
     pub developer: bool,
+    pub elo: crate::elo::Panel,
 }
 
 pub fn developer_sections_shown(developer: bool) -> bool {
@@ -161,7 +162,9 @@ pub struct SettingsPlugin;
 
 impl Plugin for SettingsPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<Settings>().add_systems(
+        app.init_resource::<Settings>();
+        app.world_mut().resource_mut::<Settings>().elo = crate::elo::Panel::load();
+        app.add_systems(
             EguiPrimaryContextPass,
             (crate::table::playmat::stage_thumbs, settings_ui).chain(),
         );
@@ -232,7 +235,11 @@ pub fn body(
     match settings.tab {
         Tab::Play => play::play_tab(ui, table),
         Tab::Look => look::look_tab(ui, metrics, my_seat, table, net, decks),
-        Tab::You => you::you_tab(ui, net, my_seat),
+        Tab::You => {
+            settings.elo.show(ui);
+            ui.separator();
+            you::you_tab(ui, net, my_seat);
+        }
         Tab::Advanced => advanced::advanced_tab(
             ui,
             settings,
@@ -516,6 +523,7 @@ mod walk {
                                     open: true,
                                     tab,
                                     developer,
+                                    ..Default::default()
                                 };
                                 let width = widest(|ui, _| {
                                     tabs(ui, &mut settings);

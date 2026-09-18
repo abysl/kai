@@ -28,6 +28,7 @@ environment to understand it.
 | [Interface design](design/ux.md) | Contributors to this subsystem | Read the stated prerequisites, then use as a focused reference |
 | [Developing Kai](development.md) | Programmers new to the project | Install tools, build, test, and troubleshoot |
 | [Playing on a Kai table](playing.md) | Players | Use an already-running application |
+| [Personal Elo](design/personal-elo.md) | Contributors | Local estimate, calculation, history, and storage |
 
 ## Writing for the reader
 
