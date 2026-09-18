@@ -12,6 +12,13 @@ The platform driver owns one client's process tree, logs, and cleanup.
 The orchestrator owns the pair, deadlines, assertions, and combined report.
 Use separate run directories and stores for every client.
 
+A driver receives its run directory as the first argument and resolves it to
+an absolute path before it changes directory, re-execs itself, or launches
+the client: the directory belongs to the caller's location, not the
+driver's. `KAI_DRIVER_RESOLVE_ONLY=1` makes a driver print that resolution
+and exit, which is what `tests/connectivity/drivers/test-paths.sh` asserts
+from a foreign working directory; the fast check runs that test.
+
 Drivers translate the application's `KAI_EVENT` records into a common event
 stream. Preserve raw platform logs for failures. An absent outcome is not a
 successful game, and a preflight skip must be reported as a skip.

@@ -28,7 +28,10 @@ without a failure does not mean every requested platform ran.
 ## Add browser or Android cases
 
 Browser cases need a built web bundle, the tests' Node dependencies and browser
-runtime, and reachable relay services. Set `KAI_WEB_DIST` or `KAI_WEB_URL`
+runtime, and reachable relay services. With `PLAYWRIGHT_BROWSERS_PATH` unset,
+`tests/web/env.sh` builds the browser runtime with Nix from the nixpkgs
+revision pinned in `devenv.lock`, so no flake near the checkout is required.
+Set `KAI_WEB_DIST` or `KAI_WEB_URL`
 for your test build. If the scenario needs a gateway, configure `GATEWAY_URL`
 for a service you operate; no private gateway is a prerequisite.
 

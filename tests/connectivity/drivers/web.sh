@@ -4,6 +4,14 @@ set -euo pipefail
 run_dir="${1:?usage: web.sh <run-dir> <plan-json>}"
 plan="${2:?usage: web.sh <run-dir> <plan-json>}"
 
+mkdir -p "$run_dir"
+run_dir="$(cd "$run_dir" && pwd)"
+
+if [[ -n "${KAI_DRIVER_RESOLVE_ONLY:-}" ]]; then
+  printf '%s\n' "$run_dir"
+  exit 0
+fi
+
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 kai="$(cd "$here/../../.." && pwd)"
 web_tests="$kai/tests/web"

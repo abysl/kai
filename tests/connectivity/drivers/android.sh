@@ -11,6 +11,14 @@ fi
 run_dir=$1
 plan=$2
 
+mkdir -p "$run_dir"
+run_dir=$(cd "$run_dir" && pwd)
+
+if [[ -n ${KAI_DRIVER_RESOLVE_ONLY:-} ]]; then
+  printf '%s\n' "$run_dir"
+  exit 0
+fi
+
 if ! command -v emulator >/dev/null 2>&1; then
   cd "$kai/android"
   exec devenv shell -- bash "$here/android.sh" "$run_dir" "$plan"
@@ -18,8 +26,6 @@ fi
 
 . "$kai/tests/android/emulator.sh"
 
-mkdir -p "$run_dir"
-run_dir=$(cd "$run_dir" && pwd)
 printf '%s\n' "$$" >"$run_dir/pid"
 printf '%s\n' "$plan" >"$run_dir/plan.json"
 export ANDROID_AVD_HOME=$run_dir/avd

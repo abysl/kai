@@ -7,4 +7,5 @@ rustc --edition 2021 --test src/table/undo_batch.rs -o target/ci/undo-tests
 target/ci/undo-tests
 rustc --edition 2021 --test src/engine/selection.rs -o target/ci/engine-selection-tests
 target/ci/engine-selection-tests
+bash tests/connectivity/drivers/test-paths.sh
 cargo check --locked --all-targets --features headless

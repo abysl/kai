@@ -57,7 +57,10 @@ The first build is substantially slower than the PR compile check.
 
 `devenv shell -- dev` enables dynamic linking for faster iteration. Use
 `devenv shell -- web-build` followed by `devenv shell -- web-serve` for the
-browser build; the local server listens on port 8123.
+browser build; the local server listens on port 8123. The environment's
+`wasm-bindgen-cli` is pinned to the `wasm-bindgen` version recorded in
+`Cargo.lock`, because the CLI and the crate must agree on the bindgen schema;
+update the pin with that entry whenever the lockfile moves it.
 Android has a separate environment under `android/`.
 
 ## Optional service configuration
