@@ -78,21 +78,23 @@ pub async fn perform(request: &Request) -> Result<Reply, String> {
             .await?;
     match request {
         Request::Import { .. } => import::parse_reply(status, &body).map(Reply::Import),
-        Request::Search { .. } => {
-            let value: Value =
-                serde_json::from_str(&body).map_err(|_| "Invalid search response")?;
-            if status != 200 {
-                return Err(value["error"]
-                    .as_str()
-                    .unwrap_or("Deck search unavailable")
-                    .into());
-            }
-            if !value["results"].is_array() {
-                return Err("Gateway does not support deck search yet".into());
-            }
-            Ok(Reply::Search(value))
-        }
+        Request::Search { .. } => parse_search_reply(status, &body),
     }
+}
+
+#[cfg(any(test, target_arch = "wasm32"))]
+fn parse_search_reply(status: u16, body: &str) -> Result<Reply, String> {
+    let value: Value = serde_json::from_str(body).map_err(|_| "Invalid search response")?;
+    if status != 200 {
+        return Err(value["error"]
+            .as_str()
+            .unwrap_or("Deck search unavailable")
+            .into());
+    }
+    if !value["results"].is_array() {
+        return Err("Gateway does not support deck search yet".into());
+    }
+    Ok(Reply::Search(value))
 }
 
 #[derive(Clone, Default)]
@@ -232,5 +234,25 @@ mod tests {
         .query()
         .unwrap()
         .contains("%0A"));
+    }
+
+    #[test]
+    fn browser_search_replies_require_the_gateway_result_shape() {
+        let Reply::Search(value) = parse_search_reply(
+            200,
+            r#"{"results":[{"title":"Deck","url":"https://riftdecks.com/deck"}]}"#,
+        )
+        .unwrap() else {
+            panic!("search reply expected")
+        };
+        assert_eq!(value["results"][0]["title"], "Deck");
+        assert_eq!(
+            parse_search_reply(429, r#"{"error":"slow down"}"#)
+                .err()
+                .as_deref(),
+            Some("slow down")
+        );
+        assert!(parse_search_reply(200, r#"{"results":null}"#).is_err());
+        assert!(parse_search_reply(200, "not json").is_err());
     }
 }
