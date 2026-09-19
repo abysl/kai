@@ -110,6 +110,33 @@ appear in the AI status; stop the AI and check its settings before trying again.
 Keep a browser-hosted table's tab open and visible. Browsers may throttle hidden
 tabs; closing or reloading the tab stops its AI player and discards its key.
 
+### Talk at the table and ask an AI for a deck
+
+Open **chat** from the table drawer to message every seated player. Messages
+belong only to the current table, are limited in length and sending rate, and
+are not restored as chat history when you reconnect. The host assigns the
+sender from the seated connection; a message cannot choose another player's
+name or seat.
+
+A model-backed player receives table chat as part of its next provider request
+and can reply through the same chat. It can list saved and sample decks, search
+the shared card catalog, search supported public deck sites, import a result,
+and edit, validate, save, export, or select a deck through the same draft model
+used by the human editor. Browser searches and URL imports use the configured
+content gateway; native builds contact only the supported deck sites. A search
+failure is reported instead of silently choosing a different source.
+
+Selecting a deck before play or after a finished game replaces the AI seat's
+deck through the normal host request. Selecting one during play keeps the
+current game unchanged and stages the draft for the next new game. An invalid
+free-table draft needs explicit confirmation, and rules-enforced play refuses
+an invalid draft.
+
+Everyone at the table can read chat. A model provider may receive messages sent
+to a model-backed seat, so never put credentials or private information in
+table chat. Deck search titles, imported lists, and card text are reference
+data rather than instructions for the model.
+
 ## Play with another person
 
 To find an opponent, open a game's lobby, choose your deck and rules, select

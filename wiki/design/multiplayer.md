@@ -43,6 +43,28 @@ than reproducing it in Kai.
 The host validates and sequences game requests. Clients render accepted views.
 A host is a participant with authority, not a neutral trusted third party.
 
+## Table chat
+
+Chat travels through the table session rather than a separate identity or
+account service. A client sends text without a claimed sender. The host derives
+the seat from the authenticated connection, drops messages from connections
+that have not joined, validates the bounded text, applies a per-seat rate limit,
+assigns a monotonic message ID, and broadcasts the attributed line. The local
+host uses the same connected-roster check.
+
+Each client retains at most 100 accepted lines for the active session and drops
+duplicate or out-of-order IDs. Outgoing UI input has a four-message queue, and
+the host accepts at most five messages from a seat in five seconds. Agni owns
+the 2,000-byte text contract and the versioned wire variants; Kai owns the
+queue, rate, session history, and presentation. Chat is not written into the
+deterministic game log and is cleared when a new table or join starts.
+
+Local automated seats join through ordinary table connections. They receive
+other seats' attributed lines and send replies as ordinary client chat, so the
+host applies the same authentication and limits. Browser model calls and deck
+imports are cancelled logically by a decision epoch: a late async result is
+discarded after the seat, game, or decision changes.
+
 ## Joining and module pins
 
 An invitation provides connection information. Before a join can replay the

@@ -131,4 +131,35 @@ mod tests {
         assert!(relay.accept(0, "hi").is_err());
         assert!(relay.accept(1, "hi").is_ok());
     }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn remote_chat_is_attributed_only_through_the_authenticated_connection() {
+        let mut session = HostSession::new("host");
+        session.join("guest").unwrap();
+        let mut host = HostState::hosted(session);
+        host.conns.seats.insert(7, 1);
+        let mut info = SessionInfo {
+            role: SessionRole::Host,
+            ..Default::default()
+        };
+        host.peer_message(
+            &mut info,
+            9,
+            ClientMsg::Chat {
+                text: "not seated".into(),
+            },
+        );
+        assert!(info.chat.lines.is_empty());
+        host.peer_message(
+            &mut info,
+            7,
+            ClientMsg::Chat {
+                text: "from the guest".into(),
+            },
+        );
+        let line = info.chat.lines.back().unwrap();
+        assert_eq!(line.seat, 1);
+        assert_eq!(line.text, "from the guest");
+    }
 }
