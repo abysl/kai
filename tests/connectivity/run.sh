@@ -57,6 +57,8 @@ parse_args() {
     esac
   done
   [[ -n $OUT ]] || OUT=${CARGO_TARGET_DIR:-$KAI_ROOT/target}/connectivity/$(date +%Y%m%d-%H%M%S)
+  mkdir -p "$OUT"
+  OUT=$(cd "$OUT" && pwd)
   [[ -n $REPORT ]] || REPORT=$OUT/report.json
   mkdir -p "$(dirname "$REPORT")"
   REPORT=$(cd "$(dirname "$REPORT")" && pwd)/$(basename "$REPORT")

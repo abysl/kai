@@ -4,6 +4,9 @@ set -euo pipefail
 run_dir="${1:?usage: web.sh <run-dir> <plan-json>}"
 plan="${2:?usage: web.sh <run-dir> <plan-json>}"
 
+mkdir -p "$run_dir"
+run_dir="$(cd "$run_dir" && pwd)"
+
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 kai="$(cd "$here/../../.." && pwd)"
 web_tests="$kai/tests/web"
