@@ -880,11 +880,22 @@ pub fn load_deck(seat: &mut Seat, path: &str, out: &mut Out) {
     }
 }
 
+pub fn deal_rules_enforced(options: Option<&[u8]>) -> bool {
+    agni_riftbound::TableOptions::enforced_in(options)
+}
+
 pub fn deal(seat: &mut Seat, link: &mut dyn Link, out: &mut Out) {
     let Some(record) = seat.deck.as_mut() else {
         out.line("no deck loaded — `deck <file>` first");
         return;
     };
+    let enforced = seat.session.as_ref().is_some_and(|session| {
+        deal_rules_enforced(session.state().options.as_ref().map(|options| &options[..]))
+    });
+    if let Err(error) = crate::deck::actions::validate_deal(&record.deck, enforced) {
+        out.line(format!("deck refused: {error}"));
+        return;
+    }
     record.seat = PlayerId(seat.seat);
     if crate::deck::battlefield::needs_choice(record) {
         out.line("choose a battlefield first: `battlefield <n>`");

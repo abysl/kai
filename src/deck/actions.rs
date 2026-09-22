@@ -47,9 +47,12 @@ pub fn search_cards(cards: &Catalog, query: &str, offset: usize) -> Value {
 
 pub fn inspect(draft: &Draft) -> Value {
     let deck = ImportedDeck::Riftbound(draft.deck.clone());
+    let report = deck
+        .report()
+        .expect("Riftbound decks have legality reports");
     json!({"label": draft.label, "summary": deck.summary(),
         "list": super::exchange::render(&draft.deck, super::exchange::Share::TextList).unwrap_or_default(),
-        "validation": super::import::findings_text(&draft.report), "unresolved": draft.unresolved})
+        "validation": super::import::findings_text(&report), "unresolved": draft.unresolved})
 }
 
 pub fn edit(draft: &mut Option<Draft>, cards: &Catalog, args: &Value) -> Result<Value, String> {
@@ -162,15 +165,24 @@ pub fn selection_legal(verdict: agni_riftbound::legality::Verdict, enforced: boo
     !enforced || !matches!(verdict, agni_riftbound::legality::Verdict::Broken(_))
 }
 
-pub fn validate_selection(draft: &Draft, enforced: bool, confirmed: bool) -> Result<(), String> {
-    if !selection_legal(draft.report.verdict, enforced) {
-        return Err(super::import::findings_text(&draft.report));
+pub fn validate_deal(deck: &ImportedDeck, enforced: bool) -> Result<(), String> {
+    let Some(report) = deck.report() else {
+        return Ok(());
+    };
+    if selection_legal(report.verdict, enforced) {
+        Ok(())
+    } else {
+        Err(super::import::findings_text(&report))
     }
-    if matches!(
-        draft.report.verdict,
-        agni_riftbound::legality::Verdict::Broken(_)
-    ) && !confirmed
-    {
+}
+
+pub fn validate_selection(draft: &Draft, enforced: bool, confirmed: bool) -> Result<(), String> {
+    let deck = ImportedDeck::Riftbound(draft.deck.clone());
+    validate_deal(&deck, enforced)?;
+    let report = deck
+        .report()
+        .expect("Riftbound decks have legality reports");
+    if matches!(report.verdict, agni_riftbound::legality::Verdict::Broken(_)) && !confirmed {
         return Err(
             "This free-table deck is invalid. Confirm explicitly to seat it anyway.".into(),
         );
@@ -303,5 +315,53 @@ mod tests {
             .as_array()
             .unwrap()
             .is_empty());
+    }
+
+    fn entry(name: &str, id: &str) -> agni_riftbound::DeckEntry {
+        agni_riftbound::DeckEntry {
+            card: agni_riftbound::ResolvedCard {
+                name: name.into(),
+                riftbound_id: id.into(),
+                ..Default::default()
+            },
+            count: 1,
+        }
+    }
+
+    #[test]
+    fn selection_and_deals_recheck_banned_sideboards() {
+        let mut deck = crate::deck::pool::deck("lillia-house").unwrap();
+        deck.sideboard = vec![entry("Stacked Deck", "ogn-183-298")];
+        let imported = ImportedDeck::Riftbound(deck.clone());
+        let report = imported.report().unwrap();
+        assert!(report.findings.iter().any(|finding| {
+            matches!(
+                &finding.rule,
+                agni_riftbound::legality::Rule::Banned { name } if name == "Stacked Deck"
+            ) && finding.zone == agni_riftbound::legality::Zone::Sideboard
+        }));
+        assert!(validate_deal(&imported, true).is_err());
+        assert!(validate_deal(&imported, false).is_ok());
+
+        let mut draft = Draft::from_deck(
+            crate::deck::pool::deck("lillia-house").unwrap(),
+            "stale",
+            Origin::New,
+        );
+        draft.deck = deck;
+        assert!(validate_selection(&draft, true, false).is_err());
+        assert!(validate_selection(&draft, false, false).is_err());
+        assert!(validate_selection(&draft, false, true).is_ok());
+    }
+
+    #[test]
+    fn other_titles_stay_available_to_enforced_deals() {
+        let mut deck = crate::deck::pool::deck("lillia-house").unwrap();
+        deck.main_deck[0].card.name = "Ekko - Another Title".into();
+        let imported = ImportedDeck::Riftbound(deck);
+        assert!(imported.report().unwrap().findings.iter().all(|finding| {
+            !matches!(&finding.rule, agni_riftbound::legality::Rule::Banned { .. })
+        }));
+        assert!(validate_deal(&imported, true).is_ok());
     }
 }

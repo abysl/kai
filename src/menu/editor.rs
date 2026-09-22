@@ -362,7 +362,7 @@ pub fn editor_screen(
     }
     let now = ui.input(|input| input.time);
     for action in actions {
-        run_action(action, now, menu, my_seat, decks);
+        run_action(action, now, enforced, menu, my_seat, decks);
     }
 }
 
@@ -1408,7 +1408,14 @@ pub fn browser_edit(draft: &Draft, catalog: &Catalog, action: BrowserAction) -> 
     })
 }
 
-fn run_action(action: Action, now: f64, menu: &mut Menu, my_seat: &MySeat, decks: &mut DeckParams) {
+fn run_action(
+    action: Action,
+    now: f64,
+    enforced: bool,
+    menu: &mut Menu,
+    my_seat: &MySeat,
+    decks: &mut DeckParams,
+) {
     let game_tag = agni_riftbound::GAME.to_string();
     let DeckParams {
         editor,
@@ -1515,6 +1522,12 @@ fn run_action(action: Action, now: f64, menu: &mut Menu, my_seat: &MySeat, decks
             editor::close(editor, menu);
         }
         Action::Seat { next_game } => {
+            if let Err(error) =
+                crate::deck::actions::validate_selection(draft, enforced, sheet.seat_armed)
+            {
+                sheet.status(error, now);
+                return;
+            }
             let saved = if cfg!(target_arch = "wasm32") {
                 Err(WEB_SAVE_NOTE.to_string())
             } else {
