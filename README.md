@@ -28,9 +28,12 @@ You can [try Kai in your browser](https://kai.rae.blue) without installing
 development tools. The browser app uses a public content gateway to load
 game content; availability depends on the service and your network connection.
 
-For Android, [download the latest APK](https://kai.rae.blue/apk/). Android may
-ask you to allow installation from your browser. These are development builds;
-use the version shown in Settings when reporting a problem.
+For Android, [download the latest APK](https://kai.rae.blue/apk/) or a
+[development prerelease](https://github.com/abysl/kai/releases). Android may ask
+you to allow installation from your browser. In Obtainium, use
+`https://github.com/abysl/kai`, enable prereleases, use Name (smart) ordering,
+and select the `kai-0.1.*-android.apk` asset. Use the version shown in Settings
+when reporting a problem.
 
 This repository contains source code, not a bundled card collection.
 Building from source currently requires development tools and a neighboring

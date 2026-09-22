@@ -62,6 +62,10 @@
       . "$KAI_SIGNING_ENV"
       set +a
     fi
+    if [ "''${KAI_REQUIRE_SIGNING:-}" = 1 ] && [ -z "''${KAI_KEYSTORE_BASE64:-}" ]; then
+      echo "KAI_REQUIRE_SIGNING needs release credentials"
+      exit 1
+    fi
     if [ -z "''${KAI_KEYSTORE_BASE64:-}" ]; then
       echo "!! KAI_KEYSTORE_BASE64 unset — falling back to the debug key, NOT publishable"
     fi

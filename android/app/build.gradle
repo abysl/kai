@@ -16,14 +16,27 @@ static String gitValue(File dir, List<String> command) {
 def sourceRoot = rootProject.projectDir
 def commitEpoch = System.getenv("KAI_BUILD_EPOCH") ?: gitValue(sourceRoot, ["git", "log", "-1", "--format=%ct", "HEAD"])
 def commitSha = System.getenv("KAI_BUILD_SHA") ?: gitValue(sourceRoot, ["git", "rev-parse", "--short=8", "HEAD"])
+def releaseVersionCode = System.getenv("KAI_RELEASE_VERSION_CODE")
+def releaseVersionBase = new File(sourceRoot, "../release-version-base.txt")
+def commitCount = gitValue(sourceRoot, ["git", "rev-list", "--count", "HEAD"])
 def buildEpoch = commitEpoch ? commitEpoch as long : System.currentTimeMillis().intdiv(1000)
-def kaiVersionCode = buildEpoch.intdiv(60) as int
+def localVersionCode = buildEpoch.intdiv(60) as int
+def computedReleaseVersionCode = releaseVersionBase.isFile() && commitCount ? releaseVersionBase.text.trim().toInteger() + commitCount.toInteger() : null
+def kaiVersionCode = releaseVersionCode ? releaseVersionCode.toInteger() : localVersionCode
 def kaiVersionName = "0.1.${kaiVersionCode}".toString()
 def kaiReleaseName = "kai-${kaiVersionName}+${commitSha ?: "local"}.apk".toString()
 
+if (releaseVersionCode && (!releaseVersionCode.isInteger() || releaseVersionCode.toInteger() <= 0)) throw new GradleException("KAI_RELEASE_VERSION_CODE must be a positive integer")
+if (releaseVersionCode && computedReleaseVersionCode != kaiVersionCode) throw new GradleException("KAI_RELEASE_VERSION_CODE does not match release-version-base.txt and source history")
+
 def kaiAbis = (project.findProperty("kaiAbis") ?: "arm64-v8a").toString().split(",").collect { it.trim() }.findAll { !it.isEmpty() }
 def keystoreBase64 = System.getenv("KAI_KEYSTORE_BASE64")
+def signingRequired = System.getenv("KAI_REQUIRE_SIGNING") == "1"
+def signingFields = [keystoreBase64, System.getenv("KAI_KEYSTORE_PASSWORD"), System.getenv("KAI_KEY_ALIAS"), System.getenv("KAI_KEY_PASSWORD")]
 def ingestToken = System.getenv("KAI_INGEST_TOKEN_ANDROID") ?: ""
+
+if (signingRequired && signingFields.any { !it }) throw new GradleException("release signing credentials are required")
+if (keystoreBase64 && signingFields.any { !it }) throw new GradleException("release signing credentials are incomplete")
 def buildRoot = layout.buildDirectory.get().asFile
 def releaseKeystore = new File(buildRoot, "signing/kai-release.jks")
 def releaseNameFile = new File(buildRoot, "kai-release-name")
