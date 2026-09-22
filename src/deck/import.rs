@@ -107,6 +107,16 @@ impl ImportedDeck {
         cards
     }
 
+    pub fn report(&self) -> Option<agni_riftbound::legality::Report> {
+        match self {
+            Self::Riftbound(deck) => Some(agni_riftbound::legality::check(
+                deck,
+                agni_riftbound::legality::Mode::Standard,
+            )),
+            Self::Mtg(_) => None,
+        }
+    }
+
     pub fn summary(&self) -> Vec<String> {
         match self {
             Self::Riftbound(deck) => {
@@ -168,9 +178,7 @@ impl ResolvedImport {
     }
 
     pub fn report(&self) -> Option<agni_riftbound::legality::Report> {
-        self.riftbound().map(|deck| {
-            agni_riftbound::legality::check(deck, agni_riftbound::legality::Mode::Standard)
-        })
+        self.deck.report()
     }
 }
 

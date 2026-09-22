@@ -1453,12 +1453,20 @@ pub fn deal_setup(
     })
 }
 
+pub fn deck_refusal(
+    record: &crate::deck::import::SeatedDeckRecord,
+    enforced: bool,
+) -> Option<String> {
+    crate::deck::actions::validate_deal(&record.deck, enforced).err()
+}
+
 pub fn route_deck_deals(
     mut requests: MessageReader<crate::deck::import::DealDeckRequested>,
     mut table: ResMut<GameTable>,
     mut mirror: ResMut<Mirror>,
     mut host: ResMut<HostState>,
     mut info: ResMut<SessionInfo>,
+    choice: Res<TableChoice>,
     seated: Res<crate::deck::import::SeatedDeck>,
     my_seat: Res<MySeat>,
     generation: Res<DealGeneration>,
@@ -1469,6 +1477,10 @@ pub fn route_deck_deals(
     let Some(record) = &seated.0 else {
         return;
     };
+    if let Some(reason) = deck_refusal(record, rules_enforced(&info, &choice)) {
+        info.status = format!("deck refused — {reason}");
+        return;
+    }
     let groups = crate::deck::import::body_plan(record, deal_setup(&info, &my_seat, &generation));
     send_deal(
         groups,
@@ -1486,6 +1498,7 @@ pub fn route_battlefield_placements(
     mut mirror: ResMut<Mirror>,
     mut host: ResMut<HostState>,
     mut info: ResMut<SessionInfo>,
+    choice: Res<TableChoice>,
     seated: Res<crate::deck::import::SeatedDeck>,
     my_seat: Res<MySeat>,
     generation: Res<DealGeneration>,
@@ -1496,6 +1509,10 @@ pub fn route_battlefield_placements(
     let Some(record) = &seated.0 else {
         return;
     };
+    if let Some(reason) = deck_refusal(record, rules_enforced(&info, &choice)) {
+        info.status = format!("deck refused — {reason}");
+        return;
+    }
     let groups =
         crate::deck::import::battlefield_plan(record, deal_setup(&info, &my_seat, &generation));
     send_deal(
@@ -1576,6 +1593,7 @@ pub fn route_deck_reloads(
     mut generation: ResMut<DealGeneration>,
     mut host: ResMut<HostState>,
     mut info: ResMut<SessionInfo>,
+    choice: Res<TableChoice>,
     seated: Res<crate::deck::import::SeatedDeck>,
     my_seat: Res<MySeat>,
 ) {
@@ -1585,6 +1603,10 @@ pub fn route_deck_reloads(
     let Some(record) = &seated.0 else {
         return;
     };
+    if let Some(reason) = deck_refusal(record, rules_enforced(&info, &choice)) {
+        info.status = format!("deck refused — {reason}");
+        return;
+    }
     let groups = crate::deck::import::deal_plan_for(record);
     if groups.is_empty() {
         return;
@@ -2004,6 +2026,28 @@ mod tests {
     use agni_core::{CardFace, Table};
     use agni_sim::engine::NativeEngine;
     use agni_sim::log::encode_log;
+
+    #[test]
+    fn deck_refusal_rechecks_the_registered_deck_before_dealing() {
+        let mut deck = crate::deck::pool::deck("lillia-house").unwrap();
+        deck.sideboard = vec![agni_riftbound::DeckEntry {
+            card: agni_riftbound::ResolvedCard {
+                name: "Ekko, Recurrent".into(),
+                riftbound_id: "ogn-110-298".into(),
+                ..Default::default()
+            },
+            count: 1,
+        }];
+        let record = crate::deck::import::SeatedDeckRecord {
+            seat: PlayerId(0),
+            deck: crate::deck::import::ImportedDeck::Riftbound(deck),
+            faces: Default::default(),
+            battlefield: None,
+            battlefield_played: false,
+        };
+        assert!(deck_refusal(&record, true).is_some());
+        assert!(deck_refusal(&record, false).is_none());
+    }
 
     #[test]
     fn new_tables_and_resets_rearm_the_selected_deck_only_after_seating() {

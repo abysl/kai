@@ -489,6 +489,24 @@ mod tests {
             }
             let report =
                 agni_riftbound::legality::check(&deck, agni_riftbound::legality::Mode::Standard);
+            if held.slug == "kha-zix-hotkee" {
+                assert_eq!(
+                    deck.main_deck
+                        .iter()
+                        .find(|entry| entry.card.name == "Stacked Deck")
+                        .map(|entry| entry.count),
+                    Some(3)
+                );
+                assert_eq!(report.breaks(), 1, "{:?}", report.findings);
+                assert_eq!(report.verdict, agni_riftbound::legality::Verdict::Broken(1));
+                assert!(report.findings.iter().any(|finding| {
+                    matches!(
+                        &finding.rule,
+                        agni_riftbound::legality::Rule::Banned { name } if name == "Stacked Deck"
+                    )
+                }));
+                continue;
+            }
             assert_eq!(report.breaks(), 0, "{}: {:?}", held.slug, report.findings);
             assert_eq!(
                 report.verdict,
