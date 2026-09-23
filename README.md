@@ -36,9 +36,10 @@ and select the APK asset matching `^kai-0\.1\.[0-9]+\.[0-9a-f]{8}\.apk$`.
 Use the version shown in Settings when reporting a problem.
 
 The same prerelease also includes a Linux x86-64 desktop tarball and a static
-web tarball. Extract the desktop archive and run `./kai` from inside its `kai/`
-directory; it needs compatible Linux graphics/audio drivers and Nix-built
-runtime libraries, so it is not a standalone installer for arbitrary distros.
+web tarball. Extract the desktop archive and run `./run` from inside its `kai/`
+directory. It bundles window/audio loader libraries but still needs its Nix
+store ELF interpreter and compatible host graphics drivers, so it is not a
+standalone installer for arbitrary distros.
 Extract the web archive into a static web server. Multiplayer and content
 loading need the same gateway configuration used by the hosted browser app.
 `SHA256SUMS` covers all three release downloads.
