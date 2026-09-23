@@ -32,8 +32,8 @@ For Android, [download the latest APK](https://kai.rae.blue/apk/) or a
 [development prerelease](https://github.com/abysl/kai/releases). Android may ask
 you to allow installation from your browser. In Obtainium, use
 `https://github.com/abysl/kai`, enable prereleases, use Name (smart) ordering,
-and select the `kai-0.1.*-android.apk` asset. Use the version shown in Settings
-when reporting a problem.
+and select the APK asset matching `^kai-0\.1\.[0-9]+\.[0-9a-f]{8}\.apk$`.
+Use the version shown in Settings when reporting a problem.
 
 This repository contains source code, not a bundled card collection.
 Building from source currently requires development tools and a neighboring
