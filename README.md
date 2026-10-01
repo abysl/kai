@@ -14,6 +14,7 @@ they do not yet have identical capabilities or a finished installation experienc
 - Build, import, save, and share Riftbound decks.
 - Host a table or join another player using an invitation.
 - Find an opponent searching for a two-player table with the same settings.
+- Chat with authenticated seats at the current table.
 - Undo table actions with the other players' agreement.
 - Add an AI opponent on desktop, Android, or in your browser, using your own
   OpenRouter/NanoGPT key or a keyless random player.

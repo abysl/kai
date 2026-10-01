@@ -36,6 +36,14 @@ Hidden cards require checks from both the owner and other seats. Hiding one
 image is insufficient if labels, previews, hover state, or a stale entity still
 reveal the face.
 
+Human and automated deck editing share `Draft`, `Edit`, catalog resolution,
+import resolution, legality reports, persistence, and export rendering. Model
+tools are adapters over those operations, not a second deck implementation.
+Remote search is bounded to supported public sites, and returned titles, URLs,
+lists, and card text remain untrusted data. A selection during an active game
+is staged and applied only when the host begins a new game; it never replaces
+cards in the current accepted state.
+
 Discard labels and an open prompt's counted trash buttons open a browse sheet
 for either visible player's public discard.
 Hovering a listed card or a chain thumbnail drives the inspector only when the

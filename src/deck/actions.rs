@@ -126,11 +126,7 @@ pub fn edit(draft: &mut Option<Draft>, cards: &Catalog, args: &Value) -> Result<
             })?))
         }
         "save" => {
-            let id = super::history::store::remember_as(
-                &ImportedDeck::Riftbound(draft.deck.clone()),
-                "editor",
-                &draft.label,
-            )?;
+            let id = super::exchange::save(draft, agni_riftbound::GAME)?;
             return Ok(json!({"saved": id.to_string(), "label": draft.label}));
         }
         "export" => {
@@ -150,12 +146,8 @@ pub fn edit(draft: &mut Option<Draft>, cards: &Catalog, args: &Value) -> Result<
     Ok(inspect(draft))
 }
 
-pub fn selection_allowed(view: &agni_sim::wire::PluginView) -> Result<(), String> {
-    if view.turn.as_ref().is_some_and(|turn| turn.number > 0) && view.winner.is_none() {
-        Err("A game is in progress. You may edit a draft, but start a new game before changing the seated deck.".into())
-    } else {
-        Ok(())
-    }
+pub fn selection_deferred(view: &agni_sim::wire::PluginView) -> bool {
+    view.turn.as_ref().is_some_and(|turn| turn.number > 0) && view.winner.is_none()
 }
 
 pub fn selection_legal(verdict: agni_riftbound::legality::Verdict, enforced: bool) -> bool {
@@ -303,5 +295,22 @@ mod tests {
             .as_array()
             .unwrap()
             .is_empty());
+    }
+
+    #[test]
+    fn active_games_defer_deck_selection_until_the_new_game_boundary() {
+        let mut view = agni_sim::wire::PluginView {
+            turn: Some(agni_sim::wire::TurnInfo {
+                number: 1,
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        assert!(selection_deferred(&view));
+        view.winner = Some(0);
+        assert!(!selection_deferred(&view));
+        view.winner = None;
+        view.turn.as_mut().unwrap().number = 0;
+        assert!(!selection_deferred(&view));
     }
 }
